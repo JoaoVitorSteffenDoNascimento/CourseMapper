@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import './App.css';
+import {
+  formatRegistration,
+  isValidEmail,
+  normalizeEmail,
+  normalizeRegistration,
+  validateAuthForm,
+} from './utils/authValidation';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const API_FALLBACK_URL = 'http://localhost:3001/api';
@@ -10,7 +17,6 @@ const statusLabels = { completed: 'Concluida', available: 'Disponivel', locked: 
 const statusOrder = { completed: 0, available: 1, locked: 2 };
 const pageLabels = { overview: 'Visao geral', board: 'Quadro de cadeiras', curriculum: 'Curriculo', analytics: 'Analises', settings: 'Configuracoes' };
 const themeOptions = [{ id: 'brand', label: 'Verde' }, { id: 'dark', label: 'Dark' }, { id: 'white', label: 'White' }];
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const getStoredToken = () => window.localStorage.getItem(TOKEN_STORAGE_KEY) || '';
 const setStoredToken = (token) => token ? window.localStorage.setItem(TOKEN_STORAGE_KEY, token) : window.localStorage.removeItem(TOKEN_STORAGE_KEY);
@@ -81,30 +87,15 @@ const getSettingsForm = (user, themeOverride = '') => ({
 const normalizeSettingsForCompare = (form) => ({
   name: String(form?.name || '').trim(),
   username: String(form?.username || '').trim(),
-  email: String(form?.email || '').trim().toLowerCase(),
+  email: normalizeEmail(form?.email || ''),
   avatarUrl: String(form?.avatarUrl || '').trim(),
   theme: String(form?.theme || 'brand'),
 });
 
-const normalizeRegistration = (value) => value.replace(/\D/g, '').slice(0, 10);
-function formatRegistration(value) {
-  const digits = normalizeRegistration(value);
-  return digits.length <= 4 ? digits : `${digits.slice(0, 4)} ${digits.slice(4)}`;
-}
-
-function validateAuthForm(authMode, form) {
-  const registration = normalizeRegistration(form.registration);
-  if (authMode === 'register' && form.name.trim().length < 3) return 'Informe um nome valido.';
-  if (registration.length !== 10) return 'A matricula deve ter 10 digitos.';
-  if (authMode === 'register' && !EMAIL_PATTERN.test(form.email.trim())) return 'Informe um e-mail valido.';
-  if (form.password.trim().length < 4) return 'A senha deve ter pelo menos 4 caracteres.';
-  return '';
-}
-
 function validateSettingsForm(form) {
   if (form.name.trim().length < 3) return 'Informe um nome valido.';
   if (form.username.trim().length < 3) return 'O nome de usuario deve ter pelo menos 3 caracteres.';
-  if (!EMAIL_PATTERN.test(form.email.trim())) return 'Informe um e-mail valido.';
+  if (!isValidEmail(form.email)) return 'Informe um e-mail valido.';
   if (!themeOptions.some((option) => option.id === form.theme)) return 'Tema invalido.';
   return '';
 }
@@ -289,7 +280,7 @@ function AuthScreen({ authMode, form, setForm, onSubmit, setAuthMode, loading, e
             </label>
           ) : null}
           <label>Senha
-            <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} placeholder="Minimo de 4 caracteres" minLength={4} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} />
+            <input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} placeholder="Minimo de 8 caracteres, com maiuscula, minuscula, numero e especial" minLength={8} autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} />
           </label>
           {authMode === 'register' ? (
             <label>Curso
@@ -351,9 +342,12 @@ function Sidebar({ user, currentPage, setCurrentPage, selectedCourseId, setSelec
 }
 
 function OverviewPage({ mapData, user, curriculums, setCurrentPage }) {
-  const availableSubjects = getNextSubjects(mapData.subjects);
-  const criticalSubjects = getCriticalSubjects(mapData.subjects).slice(0, 4);
-  const userCourse = curriculums.find((item) => item.id === user.courseId);
+  const availableSubjects = useMemo(() => getNextSubjects(mapData.subjects), [mapData.subjects]);
+  const criticalSubjects = useMemo(() => getCriticalSubjects(mapData.subjects).slice(0, 4), [mapData.subjects]);
+  const userCourse = useMemo(
+    () => curriculums.find((item) => item.id === user.courseId),
+    [curriculums, user.courseId],
+  );
   return (
     <div className="page-grid">
       <section className="hero-card">
@@ -403,8 +397,11 @@ function OverviewPage({ mapData, user, curriculums, setCurrentPage }) {
 }
 
 function CurriculumPage({ mapData, actionLoadingId, onToggleSubject }) {
-  const groupedSubjects = groupBySemester(mapData.subjects);
-  const orderedSemesters = Object.keys(groupedSubjects).sort((a, b) => Number(a) - Number(b));
+  const groupedSubjects = useMemo(() => groupBySemester(mapData.subjects), [mapData.subjects]);
+  const orderedSemesters = useMemo(
+    () => Object.keys(groupedSubjects).sort((a, b) => Number(a) - Number(b)),
+    [groupedSubjects],
+  );
   return (
     <div className="page-grid">
       <section className="page-header-card">
@@ -447,26 +444,67 @@ function CurriculumPage({ mapData, actionLoadingId, onToggleSubject }) {
   );
 }
 
+const BoardNode = memo(function BoardNode({ subject, placement, actionLoadingId, onToggleSubject }) {
+  return (
+    <button
+      type="button"
+      className={`board-node status-${subject.status} trail-${getTrailSlug(subject.trail)} ${subject.isCritical ? 'is-critical' : ''}`}
+      style={{
+        left: `${placement.x}px`,
+        top: `${placement.y}px`,
+        width: `${placement.width}px`,
+        height: `${placement.height}px`,
+      }}
+      onClick={() => onToggleSubject(subject)}
+      disabled={actionLoadingId === subject.id || subject.status === 'locked'}
+    >
+      <span className="board-node-check" aria-hidden="true" />
+      <div className="board-node-content">
+        <div className="board-node-topline">
+          <strong>{subject.name}</strong>
+          <span>{subject.id}</span>
+        </div>
+        <p>{statusLabels[subject.status]}</p>
+      </div>
+    </button>
+  );
+});
+
 function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
-  const semesters = [...new Set(mapData.subjects.map((subject) => subject.semester))].sort((a, b) => a - b);
-  const trailOrder = getTrailOrder(mapData.subjects, mapData.course.trailLabels);
-  const layout = buildBoardLayout(mapData.subjects, trailOrder, semesters);
-  const prerequisiteEdges = mapData.subjects.flatMap((subject) => subject.prerequisites
-    .filter((prerequisiteId) => layout.placements.has(prerequisiteId))
-    .map((prerequisiteId) => ({
-      id: `${prerequisiteId}-${subject.id}`,
-      type: 'prerequisite',
-      from: layout.placements.get(prerequisiteId),
-      to: layout.placements.get(subject.id),
-    })));
-  const corequisiteEdges = mapData.subjects.flatMap((subject) => subject.corequisites
-    .filter((corequisiteId) => layout.placements.has(corequisiteId) && subject.id.localeCompare(corequisiteId) < 0)
-    .map((corequisiteId) => ({
-      id: `${subject.id}-${corequisiteId}`,
-      type: 'corequisite',
-      from: layout.placements.get(subject.id),
-      to: layout.placements.get(corequisiteId),
-    })));
+  const semesters = useMemo(
+    () => [...new Set(mapData.subjects.map((subject) => subject.semester))].sort((a, b) => a - b),
+    [mapData.subjects],
+  );
+  const trailOrder = useMemo(
+    () => getTrailOrder(mapData.subjects, mapData.course.trailLabels),
+    [mapData.course.trailLabels, mapData.subjects],
+  );
+  const layout = useMemo(
+    () => buildBoardLayout(mapData.subjects, trailOrder, semesters),
+    [mapData.subjects, semesters, trailOrder],
+  );
+  const prerequisiteEdges = useMemo(
+    () => mapData.subjects.flatMap((subject) => subject.prerequisites
+      .filter((prerequisiteId) => layout.placements.has(prerequisiteId))
+      .map((prerequisiteId) => ({
+        id: `${prerequisiteId}-${subject.id}`,
+        type: 'prerequisite',
+        from: layout.placements.get(prerequisiteId),
+        to: layout.placements.get(subject.id),
+      }))),
+    [layout.placements, mapData.subjects],
+  );
+  const corequisiteEdges = useMemo(
+    () => mapData.subjects.flatMap((subject) => subject.corequisites
+      .filter((corequisiteId) => layout.placements.has(corequisiteId) && subject.id.localeCompare(corequisiteId) < 0)
+      .map((corequisiteId) => ({
+        id: `${subject.id}-${corequisiteId}`,
+        type: 'corequisite',
+        from: layout.placements.get(subject.id),
+        to: layout.placements.get(corequisiteId),
+      }))),
+    [layout.placements, mapData.subjects],
+  );
 
   return (
     <div className="page-grid">
@@ -548,28 +586,13 @@ function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
               if (!placement) return null;
 
               return (
-                <button
+                <BoardNode
                   key={subject.id}
-                  type="button"
-                  className={`board-node status-${subject.status} trail-${getTrailSlug(subject.trail)} ${subject.isCritical ? 'is-critical' : ''}`}
-                  style={{
-                    left: `${placement.x}px`,
-                    top: `${placement.y}px`,
-                    width: `${placement.width}px`,
-                    height: `${placement.height}px`,
-                  }}
-                  onClick={() => onToggleSubject(subject)}
-                  disabled={actionLoadingId === subject.id || subject.status === 'locked'}
-                >
-                  <span className="board-node-check" aria-hidden="true" />
-                  <div className="board-node-content">
-                    <div className="board-node-topline">
-                      <strong>{subject.name}</strong>
-                      <span>{subject.id}</span>
-                    </div>
-                    <p>{statusLabels[subject.status]}</p>
-                  </div>
-                </button>
+                  subject={subject}
+                  placement={placement}
+                  actionLoadingId={actionLoadingId}
+                  onToggleSubject={onToggleSubject}
+                />
               );
             })}
           </div>
@@ -580,7 +603,7 @@ function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
 }
 
 function AnalyticsPage({ mapData }) {
-  const trailSummary = getTrailSummary(mapData.subjects);
+  const trailSummary = useMemo(() => getTrailSummary(mapData.subjects), [mapData.subjects]);
   const completion = mapData.stats.completionRate;
   return (
     <div className="page-grid">
@@ -876,7 +899,7 @@ export default function App() {
       const path = authMode === 'login' ? '/auth/login' : '/auth/register';
       const payload = authMode === 'login'
         ? { registration: normalizeRegistration(form.registration), password: form.password }
-        : { ...form, registration: normalizeRegistration(form.registration), email: form.email.trim(), name: form.name.trim() };
+        : { ...form, registration: normalizeRegistration(form.registration), email: normalizeEmail(form.email), name: form.name.trim() };
       const response = await apiRequest(path, { method: 'POST', body: JSON.stringify(payload) });
 
       const nextTheme = response.user.preferences?.theme || 'brand';
@@ -951,7 +974,7 @@ export default function App() {
         body: JSON.stringify({
           name: settingsForm.name.trim(),
           username: settingsForm.username.trim(),
-          email: settingsForm.email.trim(),
+          email: normalizeEmail(settingsForm.email),
           avatarUrl: settingsForm.avatarUrl.trim(),
           theme: settingsForm.theme,
         }),
