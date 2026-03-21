@@ -1,17 +1,13 @@
-import { startTransition, useDeferredValue, useEffect, useState } from 'react';
+import { lazy, Suspense, startTransition, useDeferredValue, useEffect, useState } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import {
-  boardMetrics,
-  buildBoardLayout,
   formatRegistration,
-  getBoardConnectorPath,
   getCriticalSubjects,
   getInitialForm,
   getInitials,
   getNextSubjects,
   getSettingsForm,
-  getTrailOrder,
-  getTrailSlug,
   getTrailSummary,
   groupBySemester,
   normalizeRegistration,
@@ -22,6 +18,8 @@ import {
   validateAuthForm,
   validateSettingsForm,
 } from './app-utils.js';
+
+const BoardPage = lazy(() => import('./pages/BoardPage.jsx'));
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const API_FALLBACK_URL = 'http://localhost:3001/api';
@@ -165,7 +163,7 @@ function AuthScreen({ authMode, form, setForm, onSubmit, setAuthMode, loading, e
   );
 }
 
-function Sidebar({ user, currentPage, setCurrentPage, selectedCourseId, setSelectedCourseId, curriculums, mapData, onLogout }) {
+function Sidebar({ user, currentPage, onNavigate, selectedCourseId, setSelectedCourseId, curriculums, mapData, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-block">
@@ -176,7 +174,7 @@ function Sidebar({ user, currentPage, setCurrentPage, selectedCourseId, setSelec
         <p className="sidebar-label">Navegação</p>
         <div className="nav-list">
           {Object.entries(pageLabels).map(([page, label]) => (
-            <button key={page} type="button" className={`nav-button ${currentPage === page ? 'is-active' : ''}`} onClick={() => startTransition(() => setCurrentPage(page))}>{label}</button>
+            <button key={page} type="button" className={`nav-button ${currentPage === page ? 'is-active' : ''}`} onClick={() => onNavigate(page)}>{label}</button>
           ))}
         </div>
       </div>
@@ -204,7 +202,7 @@ function Sidebar({ user, currentPage, setCurrentPage, selectedCourseId, setSelec
   );
 }
 
-function OverviewPage({ mapData, user, curriculums, setCurrentPage }) {
+function OverviewPage({ mapData, user, curriculums, onNavigate }) {
   const availableSubjects = getNextSubjects(mapData.subjects);
   const criticalSubjects = getCriticalSubjects(mapData.subjects).slice(0, 4);
   const userCourse = curriculums.find((item) => item.id === user.courseId);
@@ -216,8 +214,8 @@ function OverviewPage({ mapData, user, curriculums, setCurrentPage }) {
           <h1>Bom ver você por aqui, {user.name.split(' ')[0]}.</h1>
           <p>Seu curso padrão é <strong>{userCourse?.name}</strong>. O painel abaixo resume o seu momento acadêmico e mostra o que merece mais atenção agora.</p>
           <div className="hero-actions">
-            <button type="button" className="primary-button" onClick={() => startTransition(() => setCurrentPage('curriculum'))}>Ver currículo completo</button>
-            <button type="button" className="soft-button" onClick={() => startTransition(() => setCurrentPage('settings'))}>Abrir configurações</button>
+            <button type="button" className="primary-button" onClick={() => onNavigate('curriculum')}>Ver currículo completo</button>
+            <button type="button" className="soft-button" onClick={() => onNavigate('settings')}>Abrir configurações</button>
           </div>
         </div>
       </section>
@@ -296,138 +294,6 @@ function CurriculumPage({ mapData, actionLoadingId, onToggleSubject }) {
             </div>
           </article>
         ))}
-      </section>
-    </div>
-  );
-}
-
-function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
-  const semesters = [...new Set(mapData.subjects.map((subject) => subject.semester))].sort((a, b) => a - b);
-  const trailOrder = getTrailOrder(mapData.subjects, mapData.course.trailLabels);
-  const layout = buildBoardLayout(mapData.subjects, trailOrder, semesters);
-  const prerequisiteEdges = mapData.subjects.flatMap((subject) => subject.prerequisites
-    .filter((prerequisiteId) => layout.placements.has(prerequisiteId))
-    .map((prerequisiteId) => ({
-      id: `${prerequisiteId}-${subject.id}`,
-      type: 'prerequisite',
-      from: layout.placements.get(prerequisiteId),
-      to: layout.placements.get(subject.id),
-    })));
-  const corequisiteEdges = mapData.subjects.flatMap((subject) => subject.corequisites
-    .filter((corequisiteId) => layout.placements.has(corequisiteId) && subject.id.localeCompare(corequisiteId) < 0)
-    .map((corequisiteId) => ({
-      id: `${subject.id}-${corequisiteId}`,
-      type: 'corequisite',
-      from: layout.placements.get(subject.id),
-      to: layout.placements.get(corequisiteId),
-    })));
-
-  return (
-    <div className="page-grid">
-      <section className="page-header-card">
-        <p className="section-kicker">Quadro</p>
-        <h1>Leitura visual das cadeiras</h1>
-        <p>Uma versão mais diagramática do currículo, organizada por trilha e semestre, para enxergar dependências e caminhos de forma imediata.</p>
-      </section>
-      <section className="surface-card board-page-card">
-        <div className="card-heading">
-          <div><p className="section-kicker">Mapa por fluxo</p><h3>{mapData.course.name}</h3></div>
-          <div className="board-legend">
-            <span className="legend-item"><i className="legend-line prerequisite" />Pre-requisito</span>
-            <span className="legend-item"><i className="legend-line corequisite" />Correquisito</span>
-          </div>
-        </div>
-        <div className="board-scroll">
-          <div className="board-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
-            <svg className="board-grid" viewBox={`0 0 ${layout.width} ${layout.height}`} aria-hidden="true">
-              <line x1={boardMetrics.labelColumnWidth} y1="14" x2={boardMetrics.labelColumnWidth} y2={layout.height} className="board-divider major" />
-              {semesters.map((semester, index) => (
-                <line
-                  key={semester}
-                  x1={boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth)}
-                  y1="14"
-                  x2={boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth)}
-                  y2={layout.height}
-                  className={`board-divider ${index === 0 ? 'major' : ''}`}
-                />
-              ))}
-              {layout.rowMeta.map((row) => (
-                <rect
-                  key={row.trail}
-                  x={boardMetrics.labelColumnWidth + 10}
-                  y={row.y}
-                  width={layout.width - boardMetrics.labelColumnWidth - 20}
-                  height={row.height}
-                  rx="22"
-                  className={`board-row-band trail-${getTrailSlug(row.trail)}`}
-                />
-              ))}
-              {[...prerequisiteEdges, ...corequisiteEdges].map((edge) => (
-                <path
-                  key={edge.id}
-                  d={getBoardConnectorPath(edge.from, edge.to)}
-                  className={`board-edge ${edge.type}`}
-                />
-              ))}
-            </svg>
-
-            {semesters.map((semester, index) => (
-              <div
-                key={semester}
-                className="board-semester-label"
-                style={{
-                  left: `${boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth) + (boardMetrics.columnWidth / 2)}px`,
-                  top: '8px',
-                }}
-              >
-                <span>{semester}o semestre</span>
-              </div>
-            ))}
-
-            {layout.rowMeta.map((row) => (
-              <div
-                key={row.trail}
-                className={`board-trail-label trail-${getTrailSlug(row.trail)}`}
-                style={{
-                  left: '0px',
-                  top: `${row.y + (row.height / 2)}px`,
-                }}
-              >
-                <span>{row.trail}</span>
-              </div>
-            ))}
-
-            {mapData.subjects.map((subject) => {
-              const placement = layout.placements.get(subject.id);
-              if (!placement) return null;
-
-              return (
-                <button
-                  key={subject.id}
-                  type="button"
-                  className={`board-node status-${subject.status} trail-${getTrailSlug(subject.trail)} ${subject.isCritical ? 'is-critical' : ''}`}
-                  style={{
-                    left: `${placement.x}px`,
-                    top: `${placement.y}px`,
-                    width: `${placement.width}px`,
-                    height: `${placement.height}px`,
-                  }}
-                  onClick={() => onToggleSubject(subject)}
-                  disabled={actionLoadingId === subject.id || subject.status === 'locked'}
-                >
-                  <span className="board-node-check" aria-hidden="true" />
-                  <div className="board-node-content">
-                    <div className="board-node-topline">
-                      <strong>{subject.name}</strong>
-                      <span>{subject.id}</span>
-                    </div>
-                    <p>{statusLabels[subject.status]}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </section>
     </div>
   );
@@ -571,9 +437,16 @@ function Dashboard({
   setTheme,
   hasSettingsChanges,
 }) {
-  const [currentPage, setCurrentPage] = useState('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
   const deferredMapData = useDeferredValue(mapData);
-  let pageContent = null;
+  const routeKey = location.pathname.replace(/^\//, '') || 'overview';
+  const currentPage = pageLabels[routeKey] ? routeKey : 'overview';
+
+  function handleNavigate(page) {
+    const nextPath = page === 'overview' ? '/' : `/${page}`;
+    startTransition(() => navigate(nextPath));
+  }
 
   useEffect(() => {
     document.title = currentPage === 'overview'
@@ -581,46 +454,12 @@ function Dashboard({
       : `${pageLabels[currentPage]} | CourseMapper`;
   }, [currentPage]);
 
-  if (deferredMapData) {
-    if (currentPage === 'overview') {
-      pageContent = <OverviewPage mapData={deferredMapData} user={user} curriculums={curriculums} setCurrentPage={setCurrentPage} />;
-    }
-
-    if (currentPage === 'curriculum') {
-      pageContent = <CurriculumPage mapData={deferredMapData} actionLoadingId={actionLoadingId} onToggleSubject={onToggleSubject} />;
-    }
-
-    if (currentPage === 'board') {
-      pageContent = <BoardPage mapData={deferredMapData} actionLoadingId={actionLoadingId} onToggleSubject={onToggleSubject} />;
-    }
-
-    if (currentPage === 'analytics') {
-      pageContent = <AnalyticsPage mapData={deferredMapData} />;
-    }
-
-    if (currentPage === 'settings') {
-      pageContent = (
-        <SettingsPage
-          user={user}
-          settingsForm={settingsForm}
-          setSettingsForm={setSettingsForm}
-          onSaveProfile={onSaveProfile}
-          settingsLoading={settingsLoading}
-          settingsError={settingsError}
-          settingsSuccess={settingsSuccess}
-          setTheme={setTheme}
-          hasSettingsChanges={hasSettingsChanges}
-        />
-      );
-    }
-  }
-
   return (
     <div className="dashboard-shell">
       <Sidebar
         user={user}
         currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
+        onNavigate={handleNavigate}
         selectedCourseId={selectedCourseId}
         setSelectedCourseId={setSelectedCourseId}
         curriculums={curriculums}
@@ -633,7 +472,38 @@ function Dashboard({
           <div className="header-meta"><span>{mapData?.course.code || '--'}</span><span>{mapData?.stats.completionRate ?? 0}% concluído</span></div>
         </header>
         {dashboardError ? <p className="banner-error">{dashboardError}</p> : null}
-        {mapLoading ? <p className="loading-copy">Carregando painel...</p> : pageContent}
+        {mapLoading ? <p className="loading-copy">Carregando painel...</p> : (
+          <Routes>
+            <Route path="/" element={deferredMapData ? <OverviewPage mapData={deferredMapData} user={user} curriculums={curriculums} onNavigate={handleNavigate} /> : null} />
+            <Route path="/curriculum" element={deferredMapData ? <CurriculumPage mapData={deferredMapData} actionLoadingId={actionLoadingId} onToggleSubject={onToggleSubject} /> : null} />
+            <Route
+              path="/board"
+              element={deferredMapData ? (
+                <Suspense fallback={<p className="loading-copy">Preparando quadro de cadeiras...</p>}>
+                  <BoardPage mapData={deferredMapData} actionLoadingId={actionLoadingId} onToggleSubject={onToggleSubject} />
+                </Suspense>
+              ) : null}
+            />
+            <Route path="/analytics" element={deferredMapData ? <AnalyticsPage mapData={deferredMapData} /> : null} />
+            <Route
+              path="/settings"
+              element={deferredMapData ? (
+                <SettingsPage
+                  user={user}
+                  settingsForm={settingsForm}
+                  setSettingsForm={setSettingsForm}
+                  onSaveProfile={onSaveProfile}
+                  settingsLoading={settingsLoading}
+                  settingsError={settingsError}
+                  settingsSuccess={settingsSuccess}
+                  setTheme={setTheme}
+                  hasSettingsChanges={hasSettingsChanges}
+                />
+              ) : null}
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        )}
       </main>
     </div>
   );

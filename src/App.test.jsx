@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HashRouter } from 'react-router-dom';
 
 import App from './App.jsx';
 
@@ -49,6 +50,14 @@ function jsonResponse(data, status = 200) {
   }));
 }
 
+function renderApp() {
+  return render(
+    <HashRouter>
+      <App />
+    </HashRouter>,
+  );
+}
+
 describe('App', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -70,7 +79,7 @@ describe('App', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<App />);
+    renderApp();
 
     expect(await screen.findByText('CourseMapper')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Entrar' }));
@@ -101,7 +110,7 @@ describe('App', () => {
 
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<App />);
+    renderApp();
 
     fireEvent.change(await screen.findByLabelText('Matrícula'), { target: { value: '2026000001' } });
     fireEvent.change(screen.getByLabelText('Senha'), { target: { value: '1234' } });

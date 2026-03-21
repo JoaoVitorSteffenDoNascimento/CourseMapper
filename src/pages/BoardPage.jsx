@@ -1,0 +1,159 @@
+import { memo, useMemo } from 'react';
+
+import {
+  boardMetrics,
+  buildBoardLayout,
+  getBoardConnectorPath,
+  getTrailOrder,
+  getTrailSlug,
+  statusLabels,
+} from '../app-utils.js';
+
+function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
+  const semesters = useMemo(
+    () => [...new Set(mapData.subjects.map((subject) => subject.semester))].sort((a, b) => a - b),
+    [mapData.subjects],
+  );
+  const trailOrder = useMemo(
+    () => getTrailOrder(mapData.subjects, mapData.course.trailLabels),
+    [mapData.course.trailLabels, mapData.subjects],
+  );
+  const layout = useMemo(
+    () => buildBoardLayout(mapData.subjects, trailOrder, semesters),
+    [mapData.subjects, semesters, trailOrder],
+  );
+  const prerequisiteEdges = useMemo(
+    () => mapData.subjects.flatMap((subject) => subject.prerequisites
+      .filter((prerequisiteId) => layout.placements.has(prerequisiteId))
+      .map((prerequisiteId) => ({
+        id: `${prerequisiteId}-${subject.id}`,
+        type: 'prerequisite',
+        from: layout.placements.get(prerequisiteId),
+        to: layout.placements.get(subject.id),
+      }))),
+    [layout.placements, mapData.subjects],
+  );
+  const corequisiteEdges = useMemo(
+    () => mapData.subjects.flatMap((subject) => subject.corequisites
+      .filter((corequisiteId) => layout.placements.has(corequisiteId) && subject.id.localeCompare(corequisiteId) < 0)
+      .map((corequisiteId) => ({
+        id: `${subject.id}-${corequisiteId}`,
+        type: 'corequisite',
+        from: layout.placements.get(subject.id),
+        to: layout.placements.get(corequisiteId),
+      }))),
+    [layout.placements, mapData.subjects],
+  );
+
+  return (
+    <div className="page-grid">
+      <section className="page-header-card">
+        <p className="section-kicker">Quadro</p>
+        <h1>Leitura visual das cadeiras</h1>
+        <p>Uma versão mais diagramática do currículo, organizada por trilha e semestre, para enxergar dependências e caminhos de forma imediata.</p>
+      </section>
+      <section className="surface-card board-page-card">
+        <div className="card-heading">
+          <div><p className="section-kicker">Mapa por fluxo</p><h3>{mapData.course.name}</h3></div>
+          <div className="board-legend">
+            <span className="legend-item"><i className="legend-line prerequisite" />Pre-requisito</span>
+            <span className="legend-item"><i className="legend-line corequisite" />Correquisito</span>
+          </div>
+        </div>
+        <div className="board-scroll">
+          <div className="board-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
+            <svg className="board-grid" viewBox={`0 0 ${layout.width} ${layout.height}`} aria-hidden="true">
+              <line x1={boardMetrics.labelColumnWidth} y1="14" x2={boardMetrics.labelColumnWidth} y2={layout.height} className="board-divider major" />
+              {semesters.map((semester, index) => (
+                <line
+                  key={semester}
+                  x1={boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth)}
+                  y1="14"
+                  x2={boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth)}
+                  y2={layout.height}
+                  className={`board-divider ${index === 0 ? 'major' : ''}`}
+                />
+              ))}
+              {layout.rowMeta.map((row) => (
+                <rect
+                  key={row.trail}
+                  x={boardMetrics.labelColumnWidth + 10}
+                  y={row.y}
+                  width={layout.width - boardMetrics.labelColumnWidth - 20}
+                  height={row.height}
+                  rx="22"
+                  className={`board-row-band trail-${getTrailSlug(row.trail)}`}
+                />
+              ))}
+              {[...prerequisiteEdges, ...corequisiteEdges].map((edge) => (
+                <path
+                  key={edge.id}
+                  d={getBoardConnectorPath(edge.from, edge.to)}
+                  className={`board-edge ${edge.type}`}
+                />
+              ))}
+            </svg>
+
+            {semesters.map((semester, index) => (
+              <div
+                key={semester}
+                className="board-semester-label"
+                style={{
+                  left: `${boardMetrics.labelColumnWidth + (index * boardMetrics.columnWidth) + (boardMetrics.columnWidth / 2)}px`,
+                  top: '8px',
+                }}
+              >
+                <span>{semester}o semestre</span>
+              </div>
+            ))}
+
+            {layout.rowMeta.map((row) => (
+              <div
+                key={row.trail}
+                className={`board-trail-label trail-${getTrailSlug(row.trail)}`}
+                style={{
+                  left: '0px',
+                  top: `${row.y + (row.height / 2)}px`,
+                }}
+              >
+                <span>{row.trail}</span>
+              </div>
+            ))}
+
+            {mapData.subjects.map((subject) => {
+              const placement = layout.placements.get(subject.id);
+              if (!placement) return null;
+
+              return (
+                <button
+                  key={subject.id}
+                  type="button"
+                  className={`board-node status-${subject.status} trail-${getTrailSlug(subject.trail)} ${subject.isCritical ? 'is-critical' : ''}`}
+                  style={{
+                    left: `${placement.x}px`,
+                    top: `${placement.y}px`,
+                    width: `${placement.width}px`,
+                    height: `${placement.height}px`,
+                  }}
+                  onClick={() => onToggleSubject(subject)}
+                  disabled={actionLoadingId === subject.id || subject.status === 'locked'}
+                >
+                  <span className="board-node-check" aria-hidden="true" />
+                  <div className="board-node-content">
+                    <div className="board-node-topline">
+                      <strong>{subject.name}</strong>
+                      <span>{subject.id}</span>
+                    </div>
+                    <p>{statusLabels[subject.status]}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default memo(BoardPage);
