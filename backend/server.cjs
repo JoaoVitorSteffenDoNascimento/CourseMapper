@@ -306,7 +306,7 @@ async function validateProfileUpdate(user, body) {
 
   const existingEmail = await userRepository.findByEmail(nextEmail);
   if (existingEmail && existingEmail.id !== user.id) {
-    return 'E-mail ja cadastrado.';
+    return 'E-mail já cadastrado.';
   }
 
   return '';
@@ -342,7 +342,7 @@ app.post('/api/auth/register', async (req, res) => {
 
   const existingEmail = await userRepository.findByEmail(normalizedEmail);
   if (existingEmail) {
-    return res.status(409).json({ error: 'E-mail ja cadastrado.' });
+    return res.status(409).json({ error: 'E-mail já cadastrado.' });
   }
 
   const user = {
@@ -375,7 +375,7 @@ app.post('/api/auth/login', async (req, res) => {
   const { registration, password } = req.body;
 
   if (!registration || !password) {
-    return res.status(400).json({ error: 'Informe matricula e senha.' });
+    return res.status(400).json({ error: 'Informe matrícula e senha.' });
   }
 
   const normalizedRegistration = String(registration).trim();

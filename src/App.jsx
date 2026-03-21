@@ -436,7 +436,7 @@ function CurriculumPage({ mapData, actionLoadingId, onToggleSubject }) {
                   <p className="subject-meta">Pre-requisitos: <strong>{subject.prerequisites.length > 0 ? subject.prerequisites.join(', ') : 'Nenhum'}</strong></p>
                   <p className="subject-meta">Correquisitos: <strong>{subject.corequisites.length > 0 ? subject.corequisites.join(', ') : 'Nenhum'}</strong></p>
                   <div className="subject-footer">
-                    {subject.isCritical ? <span className="critical-chip">Caminho critico</span> : <span className="muted-chip">Fluxo normal</span>}
+                    {subject.isCritical ? <span className="critical-chip">Caminho crítico</span> : <span className="muted-chip">Fluxo normal</span>}
                     <span className="action-hint">{actionLoadingId === subject.id ? 'Salvando...' : subject.status === 'completed' ? 'Clique para desfazer' : subject.status === 'available' ? 'Clique para concluir' : 'Bloqueada'}</span>
                   </div>
                 </button>
@@ -475,7 +475,7 @@ function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
       <section className="page-header-card">
         <p className="section-kicker">Quadro</p>
         <h1>Leitura visual das cadeiras</h1>
-        <p>Uma versao mais diagramatica do curriculo, organizada por trilha e semestre, para enxergar dependencias e caminhos de forma imediata.</p>
+        <p>Uma versão mais diagramática do currículo, organizada por trilha e semestre, para enxergar dependências e caminhos de forma imediata.</p>
       </section>
       <section className="surface-card board-page-card">
         <div className="card-heading">
@@ -599,7 +599,7 @@ function AnalyticsPage({ mapData }) {
         </article>
         <article className="surface-card">
           <div className="card-heading"><div><p className="section-kicker">Estimativa</p><h3>Tempo restante</h3></div></div>
-          <div className="timeline-callout"><strong>{mapData.stats.remainingCriticalSemesters}</strong><span>semestres no caminho critico</span></div>
+          <div className="timeline-callout"><strong>{mapData.stats.remainingCriticalSemesters}</strong><span>semestres no caminho crítico</span></div>
           <p className="support-copy">Considerando que todas as disciplinas abrem em todos os semestres, este número ajuda a enxergar o mínimo teórico para concluir o fluxo principal.</p>
         </article>
       </section>
