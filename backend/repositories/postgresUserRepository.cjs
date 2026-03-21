@@ -1,35 +1,41 @@
 const fs = require('fs/promises');
 const path = require('path');
-const { Pool } = require('pg');
+const { neon } = require('@neondatabase/serverless');
 
 class PostgresUserRepository {
   constructor(databaseUrl) {
     this.databaseUrl = databaseUrl;
-    this.pool = null;
+    this.sql = null;
+    this.initialized = false;
   }
 
   async init() {
+    if (this.initialized) {
+      return;
+    }
+
     if (!this.databaseUrl) {
       throw new Error('DATABASE_URL nao foi definido para o driver postgres.');
     }
 
-    if (!this.pool) {
-      this.pool = new Pool({
-        connectionString: this.databaseUrl,
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      });
-    }
-
+    this.sql = neon(this.databaseUrl);
     const schemaPath = path.resolve(__dirname, '..', 'sql', 'schema.postgres.sql');
     const schemaSql = await fs.readFile(schemaPath, 'utf8');
-    await this.pool.query(schemaSql);
+    const statements = schemaSql
+      .split(';')
+      .map((statement) => statement.trim())
+      .filter(Boolean);
+
+    for (const statement of statements) {
+      await this.sql.query(statement);
+    }
+
+    this.initialized = true;
   }
 
-  async query(text, params = []) {
+  async query(text, params = [], options = {}) {
     await this.init();
-    return this.pool.query(text, params);
+    return this.sql.query(text, params, options);
   }
 
   mapUser(row, progressRows = []) {
@@ -59,16 +65,14 @@ class PostgresUserRepository {
     };
   }
 
-  async getProgressRows(userId, client = this.pool) {
-    const result = await client.query(
+  async getProgressRows(userId) {
+    return this.query(
       `select course_id, subject_id
        from user_progress
        where user_id = $1
        order by course_id, subject_id`,
       [userId],
     );
-
-    return result.rows;
   }
 
   async findByField(field, value) {
@@ -78,7 +82,7 @@ class PostgresUserRepository {
       throw new Error(`Campo de busca nao suportado: ${field}`);
     }
 
-    const result = await this.query(
+    const rows = await this.query(
       `select id, name, username, registration, email, course_id, avatar_url, password_hash, session_token, preferences_theme
        from users
        where ${field} = $1
@@ -86,11 +90,11 @@ class PostgresUserRepository {
       [value],
     );
 
-    if (result.rows.length === 0) {
+    if (rows.length === 0) {
       return null;
     }
 
-    const row = result.rows[0];
+    const row = rows[0];
     const progressRows = await this.getProgressRows(row.id);
     return this.mapUser(row, progressRows);
   }
@@ -108,50 +112,33 @@ class PostgresUserRepository {
   }
 
   async create(user) {
-    const client = await this.pool.connect();
-
-    try {
-      await client.query('begin');
-      await client.query(
-        `insert into users (
+    await this.init();
+    await this.sql.transaction((txn) => {
+      const queries = [
+        txn`insert into users (
           id, name, username, registration, email, course_id, avatar_url,
           password_hash, session_token, preferences_theme
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [
-          user.id,
-          user.name,
-          user.username || '',
-          user.registration,
-          user.email,
-          user.courseId,
-          user.avatarUrl || '',
-          user.passwordHash,
-          user.sessionToken || '',
-          user.preferences?.theme || 'brand',
-        ],
-      );
+        values (
+          ${user.id}, ${user.name}, ${user.username || ''}, ${user.registration}, ${user.email},
+          ${user.courseId}, ${user.avatarUrl || ''}, ${user.passwordHash},
+          ${user.sessionToken || ''}, ${user.preferences?.theme || 'brand'}
+        )`,
+      ];
 
-      const progressEntries = Object.entries(user.progress || {});
-
-      for (const [courseId, subjectIds] of progressEntries) {
+      for (const [courseId, subjectIds] of Object.entries(user.progress || {})) {
         for (const subjectId of subjectIds) {
-          await client.query(
-            `insert into user_progress (user_id, course_id, subject_id)
-             values ($1, $2, $3)`,
-            [user.id, courseId, subjectId],
+          queries.push(
+            txn`insert into user_progress (user_id, course_id, subject_id)
+                values (${user.id}, ${courseId}, ${subjectId})`,
           );
         }
       }
 
-      await client.query('commit');
-      return user;
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+      return queries;
+    });
+
+    return user;
   }
 
   async updateById(id, updater) {
@@ -164,57 +151,38 @@ class PostgresUserRepository {
     const nextUser = typeof updater === 'function'
       ? updater(existingUser)
       : { ...existingUser, ...updater };
-    const client = await this.pool.connect();
 
-    try {
-      await client.query('begin');
-      await client.query(
-        `update users
-         set name = $2,
-             username = $3,
-             registration = $4,
-             email = $5,
-             course_id = $6,
-             avatar_url = $7,
-             password_hash = $8,
-             session_token = $9,
-             preferences_theme = $10,
-             updated_at = now()
-         where id = $1`,
-        [
-          id,
-          nextUser.name,
-          nextUser.username || '',
-          nextUser.registration,
-          nextUser.email,
-          nextUser.courseId,
-          nextUser.avatarUrl || '',
-          nextUser.passwordHash,
-          nextUser.sessionToken || '',
-          nextUser.preferences?.theme || 'brand',
-        ],
-      );
-
-      await client.query('delete from user_progress where user_id = $1', [id]);
+    await this.init();
+    await this.sql.transaction((txn) => {
+      const queries = [
+        txn`update users
+            set name = ${nextUser.name},
+                username = ${nextUser.username || ''},
+                registration = ${nextUser.registration},
+                email = ${nextUser.email},
+                course_id = ${nextUser.courseId},
+                avatar_url = ${nextUser.avatarUrl || ''},
+                password_hash = ${nextUser.passwordHash},
+                session_token = ${nextUser.sessionToken || ''},
+                preferences_theme = ${nextUser.preferences?.theme || 'brand'},
+                updated_at = now()
+            where id = ${id}`,
+        txn`delete from user_progress where user_id = ${id}`,
+      ];
 
       for (const [courseId, subjectIds] of Object.entries(nextUser.progress || {})) {
         for (const subjectId of subjectIds) {
-          await client.query(
-            `insert into user_progress (user_id, course_id, subject_id)
-             values ($1, $2, $3)`,
-            [id, courseId, subjectId],
+          queries.push(
+            txn`insert into user_progress (user_id, course_id, subject_id)
+                values (${id}, ${courseId}, ${subjectId})`,
           );
         }
       }
 
-      await client.query('commit');
-      return nextUser;
-    } catch (error) {
-      await client.query('rollback');
-      throw error;
-    } finally {
-      client.release();
-    }
+      return queries;
+    });
+
+    return nextUser;
   }
 
   async updateByToken(token, updater) {
