@@ -70,7 +70,7 @@ function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
           semesters={semesters}
         />
         <div className="board-scroll">
-          <div className="board-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
+          <div key={mapData.course.id} className="board-canvas" style={{ width: `${layout.width}px`, height: `${layout.height}px` }}>
             {semesters.map((semester, index) => (
               <div
                 key={`column-${semester}`}
