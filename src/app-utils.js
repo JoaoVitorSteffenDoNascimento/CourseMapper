@@ -376,7 +376,16 @@ export function getBoardConnectorPath(source, target) {
   const startY = source.y + (source.height / 2);
   const endX = target.x;
   const endY = target.y + (target.height / 2);
+  const targetRightX = target.x + target.width;
   const distanceX = endX - startX;
+
+  if (distanceX <= 32) {
+    const bracketX = Math.max(startX, targetRightX) + 28;
+    const lead = 16;
+
+    return `M ${startX} ${startY} L ${bracketX - lead} ${startY} C ${bracketX} ${startY}, ${bracketX} ${endY}, ${bracketX - lead} ${endY} L ${targetRightX} ${endY}`;
+  }
+
   const lead = Math.max(24, Math.min(56, distanceX * 0.28));
   const startLeadX = startX + lead;
   const endLeadX = endX - lead;
