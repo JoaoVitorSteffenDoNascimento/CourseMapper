@@ -120,19 +120,17 @@ test('board layout places all subjects inside the expected grid', () => {
   const row = layout.rowMeta.find((item) => item.trail === 'Desenvolvedor');
   const topCard = layout.placements.get('CC201');
   const lowerCard = layout.placements.get('CC302');
-  const occupiedSlot = layout.slotMeta.find((item) => item.key === 'Desenvolvedor::2::0');
-  const emptySlot = layout.slotMeta.find((item) => item.key === 'Base::3::0');
+  const cell = layout.cellMeta.find((item) => item.key === 'Desenvolvedor::2');
   const stackHeight = (2 * 98) + 12;
-  const expectedStartY = row.y + 14;
+  const expectedStartY = row.y + Math.max(14, (row.height - stackHeight) / 2);
 
   assert.equal(layout.placements.size, mapData.subjects.length);
   assert.ok(layout.width > 0);
   assert.ok(layout.height > 0);
-  assert.equal(layout.slotMeta.length, 20);
+  assert.equal(layout.cellMeta.length, semesters.length * trailOrder.length);
   assert.ok(layout.placements.get('CC101').x < layout.placements.get('CC202').x);
-  assert.equal(occupiedSlot.x, topCard.x);
-  assert.equal(occupiedSlot.y, topCard.y);
-  assert.equal(emptySlot.occupied, false);
+  assert.equal(cell.x, 404);
+  assert.equal(cell.width, 214);
   assert.equal(topCard.y, expectedStartY);
   assert.equal(lowerCard.y, expectedStartY + 110);
 });
@@ -159,7 +157,7 @@ test('board connectors use a more guided curve between cards', () => {
     laneCount: 1,
   });
 
-  assert.match(path, /^M 358 184 L 398 184 L 398 294 L 426 294$/);
+  assert.match(path, /^M 358 184 L 408 184 L 408 294 L 426 294$/);
 });
 
 test('board connectors keep same-column corequisites compact', () => {
@@ -169,7 +167,7 @@ test('board connectors keep same-column corequisites compact', () => {
     type: 'corequisite',
   });
 
-  assert.match(path, /^M 902 192 L 876 192 L 876 397 L 902 397$/);
+  assert.match(path, /^M 1072 192 L 1090 192 L 1090 397 L 1072 397$/);
 });
 
 test('core calculations stay under the 200 ms target', () => {

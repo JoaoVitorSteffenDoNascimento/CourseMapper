@@ -172,6 +172,8 @@ export const boardMetrics = {
   cardHeight: 98,
   cardGap: 12,
   rowGap: 24,
+  cellPanelInsetX: 12,
+  cellPanelInsetY: 8,
 };
 
 export function getTrailSlug(trail) {
@@ -227,34 +229,37 @@ export function buildBoardLayout(subjects, trailOrder, semesters) {
   });
 
   const placements = new Map();
-  const slotMeta = [];
+  const cellMeta = [];
 
   rowMeta.forEach((row) => {
     semesters.forEach((semester, columnIndex) => {
       const cellKey = `${row.trail}::${semester}`;
       const items = cellSubjects.get(cellKey) || [];
-      const slotX = boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.cellPaddingX;
-      const slotWidth = boardMetrics.columnWidth - (boardMetrics.cellPaddingX * 2);
-      const startY = row.y + boardMetrics.cellPaddingY;
+      const stackHeight = items.length > 0
+        ? (items.length * boardMetrics.cardHeight) + ((items.length - 1) * boardMetrics.cardGap)
+        : 0;
+      const startY = row.y + Math.max(
+        boardMetrics.cellPaddingY,
+        (row.height - stackHeight) / 2,
+      );
+      const cardX = boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.cellPaddingX;
+      const cardWidth = boardMetrics.columnWidth - (boardMetrics.cellPaddingX * 2);
 
-      Array.from({ length: row.maxStack }).forEach((_, slotIndex) => {
-        slotMeta.push({
-          key: `${cellKey}::${slotIndex}`,
-          trail: row.trail,
-          semester,
-          x: slotX,
-          y: startY + (slotIndex * (boardMetrics.cardHeight + boardMetrics.cardGap)),
-          width: slotWidth,
-          height: boardMetrics.cardHeight,
-          occupied: slotIndex < items.length,
-        });
+      cellMeta.push({
+        key: cellKey,
+        trail: row.trail,
+        semester,
+        x: boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.cellPanelInsetX,
+        y: row.y + boardMetrics.cellPanelInsetY,
+        width: boardMetrics.columnWidth - (boardMetrics.cellPanelInsetX * 2),
+        height: row.height - (boardMetrics.cellPanelInsetY * 2),
       });
 
       items.forEach((subject, index) => {
         placements.set(subject.id, {
-          x: slotX,
+          x: cardX,
           y: startY + (index * (boardMetrics.cardHeight + boardMetrics.cardGap)),
-          width: slotWidth,
+          width: cardWidth,
           height: boardMetrics.cardHeight,
         });
       });
@@ -263,7 +268,7 @@ export function buildBoardLayout(subjects, trailOrder, semesters) {
 
   return {
     rowMeta,
-    slotMeta,
+    cellMeta,
     placements,
     width: boardMetrics.labelColumnWidth + (semesters.length * boardMetrics.columnWidth),
     height: Math.max(boardMetrics.headerHeight, currentY - boardMetrics.rowGap),
@@ -508,20 +513,21 @@ export function getBoardConnectorPath(edgeOrSource, maybeTarget) {
     laneCount = 1,
   } = edge;
   const sameColumn = source.x === target.x;
-  const startX = (type === 'corequisite' && sameColumn) ? source.x : source.x + source.width;
+  const startX = source.x + source.width;
   const startY = source.y + (source.height / 2);
   const endX = target.x;
   const endY = target.y + (target.height / 2);
   const laneSpread = 14;
 
   if (type === 'corequisite' && sameColumn) {
-    const laneX = source.x - 26;
+    const laneX = source.x + source.width + 18;
+    const targetRightX = target.x + target.width;
 
-    return `M ${startX} ${startY} L ${laneX} ${startY} L ${laneX} ${endY} L ${endX} ${endY}`;
+    return `M ${startX} ${startY} L ${laneX} ${startY} L ${laneX} ${endY} L ${targetRightX} ${endY}`;
   }
 
   const laneOffset = laneCount > 1 ? ((laneCount - 1 - laneIndex) * laneSpread) : 0;
-  const elbowX = Math.max(startX + 28, endX - 28 - laneOffset);
+  const elbowX = Math.max(startX + 24, endX - 18 - laneOffset);
 
   return `M ${startX} ${startY} L ${elbowX} ${startY} L ${elbowX} ${endY} L ${endX} ${endY}`;
 }
