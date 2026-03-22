@@ -115,8 +115,9 @@ USERS_FILE=backend/data/users.json
 IMPORTED_CURRICULUMS_FILE=backend/data/imported-curriculums.json
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coursemapper
 ALLOWED_ORIGINS=http://localhost:5173
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-5-mini
+MISTRAL_API_KEY=
+MISTRAL_MODEL=mistral-small-latest
+MISTRAL_OCR_MODEL=mistral-ocr-latest
 ```
 
 Description:
@@ -129,8 +130,9 @@ Description:
 - `IMPORTED_CURRICULUMS_FILE`: JSON database path for imported curriculums when using file storage
 - `DATABASE_URL`: PostgreSQL connection string
 - `ALLOWED_ORIGINS`: comma-separated list of allowed frontend origins for CORS
-- `OPENAI_API_KEY`: required for PDF/DOCX or unstructured curriculum imports
-- `OPENAI_MODEL`: OpenAI model used by curriculum import
+- `MISTRAL_API_KEY`: required for PDF/DOCX or unstructured curriculum imports
+- `MISTRAL_MODEL`: Mistral chat model used to structure curricula
+- `MISTRAL_OCR_MODEL`: Mistral OCR model used to read PDFs before structuring
 
 ## Installation
 
@@ -283,7 +285,7 @@ Required secrets in Render:
 
 ```bash
 DATABASE_URL=...
-OPENAI_API_KEY=...
+MISTRAL_API_KEY=...
 ```
 
 Health check:

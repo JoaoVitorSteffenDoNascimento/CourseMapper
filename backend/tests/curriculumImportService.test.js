@@ -52,22 +52,33 @@ describe('curriculum import service', () => {
     expect(curriculum.subjects[1].prerequisites).toEqual(['ADS101'])
   })
 
-  it('envia PDF para a OpenAI quando o conteudo precisa ser estruturado', async () => {
-    const openaiClient = {
-      responses: {
-        create: vi.fn().mockResolvedValue({
-          output_text: JSON.stringify({
-            code: 'SI',
-            name: 'Sistemas de Informacao 2023',
-            academicYear: 2023,
-            subjects: [
-              { id: 'SI101', name: 'Fundamentos', semester: 1, trail: 'Base', prerequisites: [], corequisites: [] },
-              { id: 'SI201', name: 'Modelagem', semester: 2, trail: 'Analista', prerequisites: ['SI101'], corequisites: [] },
-            ],
-            trailLabels: ['Analista'],
-          }),
-        }),
-      },
+  it('usa OCR + chat da Mistral para estruturar PDF', async () => {
+    const mistralClient = {
+      ocrProcess: vi.fn().mockResolvedValue({
+        pages: [
+          {
+            markdown: '# Sistemas de Informacao 2023\nSI101 Fundamentos 1\nSI201 Modelagem 2 prerequisito SI101',
+          },
+        ],
+      }),
+      chatComplete: vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                code: 'SI',
+                name: 'Sistemas de Informacao 2023',
+                academicYear: 2023,
+                subjects: [
+                  { id: 'SI101', name: 'Fundamentos', semester: 1, trail: 'Base', prerequisites: [], corequisites: [] },
+                  { id: 'SI201', name: 'Modelagem', semester: 2, trail: 'Analista', prerequisites: ['SI101'], corequisites: [] },
+                ],
+                trailLabels: ['Analista'],
+              }),
+            },
+          },
+        ],
+      }),
     }
 
     const curriculum = await parseCurriculumSource(
@@ -75,14 +86,16 @@ describe('curriculum import service', () => {
         fileData: 'data:application/pdf;base64,JVBERi0x',
         fileName: 'si-2023.pdf',
         mimeType: 'application/pdf',
-        openaiApiKey: 'test-key',
-        openaiModel: 'gpt-5-mini',
+        mistralApiKey: 'test-key',
+        mistralModel: 'mistral-small-latest',
+        mistralOcrModel: 'mistral-ocr-latest',
       },
-      { openaiClient },
+      { mistralClient },
     )
 
-    expect(openaiClient.responses.create).toHaveBeenCalledTimes(1)
-    expect(openaiClient.responses.create.mock.calls[0][0].input[0].content.some((item) => item.type === 'input_file')).toBe(true)
+    expect(mistralClient.ocrProcess).toHaveBeenCalledTimes(1)
+    expect(mistralClient.chatComplete).toHaveBeenCalledTimes(1)
+    expect(mistralClient.ocrProcess.mock.calls[0][0].document.document_url).toContain('data:application/pdf;base64,')
     expect(curriculum.catalogKey).toBe('si')
     expect(curriculum.academicYear).toBe(2023)
     expect(curriculum.subjects[1].prerequisites).toEqual(['SI101'])

@@ -32,6 +32,7 @@ module.exports = {
   ),
   databaseUrl: process.env.DATABASE_URL || '',
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
-  openaiApiKey: process.env.OPENAI_API_KEY || '',
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-5-mini',
+  mistralApiKey: process.env.MISTRAL_API_KEY || process.env.OPENAI_API_KEY || '',
+  mistralModel: process.env.MISTRAL_MODEL || process.env.OPENAI_MODEL || 'mistral-small-latest',
+  mistralOcrModel: process.env.MISTRAL_OCR_MODEL || 'mistral-ocr-latest',
 };

@@ -1,11 +1,11 @@
 const crypto = require('crypto');
 const mammoth = require('mammoth');
-const OpenAI = require('openai');
 
 const TEXT_EXTENSIONS = new Set(['txt', 'csv', 'json', 'md']);
 const DOCX_EXTENSIONS = new Set(['docx']);
 const PDF_EXTENSIONS = new Set(['pdf']);
-const DEFAULT_OPENAI_MODEL = 'gpt-5-mini';
+const DEFAULT_MISTRAL_MODEL = 'mistral-small-latest';
+const DEFAULT_MISTRAL_OCR_MODEL = 'mistral-ocr-latest';
 const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMPORT_MIME_TYPES = new Set([
   'application/json',
@@ -226,39 +226,65 @@ async function extractDocxText(fileData) {
   return String(result.value || '').trim();
 }
 
-function buildOpenAIClient(openaiApiKey) {
-  return new OpenAI({
-    apiKey: openaiApiKey,
-    maxRetries: 2,
-    timeout: 45_000,
-  });
-}
-
 function buildCurriculumPrompt(fileName) {
   return [
-    'Converta a grade curricular enviada para JSON valido.',
+    'Converta a grade curricular enviada para um unico objeto JSON valido.',
     'Extraia o nome do curso sem o ano quando isso estiver claro.',
     'Preencha academicYear e versionLabel quando a grade indicar ano, matriz, PPC ou versao.',
     'Identifique pre-requisitos e correquisitos apenas quando estiverem explicitamente informados.',
     'Use codigos das disciplinas nas listas de prerequisites e corequisites.',
     'Nao invente dependencias ausentes.',
+    'Retorne apenas JSON puro, sem markdown, comentarios ou texto adicional.',
     `Arquivo de origem: ${fileName || 'grade'}.`,
+    `Siga este JSON Schema: ${JSON.stringify(curriculumSchema)}`,
   ].join(' ');
 }
 
-function extractStructuredText(payload) {
-  if (typeof payload.output_text === 'string' && payload.output_text.trim()) {
-    return payload.output_text;
+function stripMarkdownCodeFence(value) {
+  const trimmed = String(value || '').trim();
+
+  if (!trimmed.startsWith('```')) {
+    return trimmed;
   }
 
-  const outputBlocks = Array.isArray(payload.output) ? payload.output : [];
+  return trimmed
+    .replace(/^```(?:json)?/i, '')
+    .replace(/```$/i, '')
+    .trim();
+}
 
-  for (const block of outputBlocks) {
-    const contents = Array.isArray(block.content) ? block.content : [];
+function extractMistralMessageText(payload) {
+  const choices = Array.isArray(payload?.choices) ? payload.choices : [];
 
-    for (const content of contents) {
-      if (typeof content.text === 'string' && content.text.trim()) {
-        return content.text;
+  for (const choice of choices) {
+    const content = choice?.message?.content;
+
+    if (typeof content === 'string' && content.trim()) {
+      return stripMarkdownCodeFence(content);
+    }
+
+    if (Array.isArray(content)) {
+      const joined = content
+        .map((item) => {
+          if (typeof item === 'string') {
+            return item;
+          }
+
+          if (typeof item?.text === 'string') {
+            return item.text;
+          }
+
+          if (typeof item?.content === 'string') {
+            return item.content;
+          }
+
+          return '';
+        })
+        .join('')
+        .trim();
+
+      if (joined) {
+        return stripMarkdownCodeFence(joined);
       }
     }
   }
@@ -266,59 +292,141 @@ function extractStructuredText(payload) {
   return '';
 }
 
-async function parseWithOpenAI({
-  fileData = '',
-  fileName = '',
-  openaiApiKey = '',
-  openaiClient = null,
-  openaiModel = DEFAULT_OPENAI_MODEL,
-  sourceText = '',
-}) {
-  const client = openaiClient || buildOpenAIClient(openaiApiKey);
-  const content = [
-    {
-      type: 'input_text',
-      text: buildCurriculumPrompt(fileName),
-    },
+function extractErrorMessage(status, payload, fallbackText) {
+  const candidates = [
+    payload?.error?.message,
+    payload?.message,
+    payload?.detail,
+    payload?.error,
+    fallbackText,
   ];
 
-  if (sourceText) {
-    content.push({
-      type: 'input_text',
-      text: sourceText,
-    });
-  }
+  const resolved = candidates.find((value) => typeof value === 'string' && value.trim());
 
-  if (fileData) {
-    content.push({
-      type: 'input_file',
-      filename: fileName || 'grade.pdf',
-      file_data: fileData,
-    });
-  }
+  return resolved || `A Mistral API retornou erro ${status}.`;
+}
 
-  const payload = await client.responses.create({
-    model: openaiModel || DEFAULT_OPENAI_MODEL,
-    input: [
-      {
-        role: 'user',
-        content,
+async function mistralJsonRequest(pathname, apiKey, payload) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+
+  try {
+    const response = await fetch(`https://api.mistral.ai${pathname}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-    ],
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'curriculum_import',
-        schema: curriculumSchema,
-        strict: true,
-      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    const rawText = await response.text();
+    let parsed = null;
+
+    try {
+      parsed = rawText ? JSON.parse(rawText) : null;
+    } catch {
+      parsed = null;
+    }
+
+    if (!response.ok) {
+      throw new Error(extractErrorMessage(response.status, parsed, rawText));
+    }
+
+    return parsed || {};
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('A requisicao para a Mistral expirou.');
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function buildMistralClient(mistralApiKey) {
+  return {
+    chatComplete(payload) {
+      return mistralJsonRequest('/v1/chat/completions', mistralApiKey, payload);
     },
+    ocrProcess(payload) {
+      return mistralJsonRequest('/v1/ocr', mistralApiKey, payload);
+    },
+  };
+}
+
+async function extractPdfTextWithMistral({
+  fileData = '',
+  fileName = '',
+  mistralApiKey = '',
+  mistralClient = null,
+  mistralOcrModel = DEFAULT_MISTRAL_OCR_MODEL,
+}) {
+  const client = mistralClient || buildMistralClient(mistralApiKey);
+  const payload = await client.ocrProcess({
+    model: mistralOcrModel || DEFAULT_MISTRAL_OCR_MODEL,
+    document: {
+      type: 'document_url',
+      document_url: fileData,
+    },
+    document_annotation_format: { type: 'text' },
+    document_annotation_prompt: [
+      'Extraia o texto da grade curricular preservando codigos, nomes de disciplinas, semestres, pre-requisitos e correquisitos.',
+      'Mantenha a hierarquia de tabelas e listas em markdown simples.',
+      `Arquivo de origem: ${fileName || 'grade.pdf'}.`,
+    ].join(' '),
+    table_format: 'markdown',
   });
 
-  const structuredText = extractStructuredText(payload);
+  const documentAnnotation = String(payload.document_annotation || '').trim();
+
+  if (documentAnnotation) {
+    return documentAnnotation;
+  }
+
+  const pages = Array.isArray(payload.pages) ? payload.pages : [];
+  const markdown = pages
+    .map((page) => String(page?.markdown || '').trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+  if (!markdown) {
+    throw new Error('A Mistral API nao conseguiu extrair texto do PDF.');
+  }
+
+  return markdown;
+}
+
+async function parseWithMistral({
+  fileName = '',
+  mistralApiKey = '',
+  mistralClient = null,
+  mistralModel = DEFAULT_MISTRAL_MODEL,
+  sourceText = '',
+}) {
+  const client = mistralClient || buildMistralClient(mistralApiKey);
+  const payload = await client.chatComplete({
+    model: mistralModel || DEFAULT_MISTRAL_MODEL,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: buildCurriculumPrompt(fileName),
+      },
+      {
+        role: 'user',
+        content: String(sourceText || '').trim(),
+      },
+    ],
+  });
+
+  const structuredText = extractMistralMessageText(payload);
 
   if (!structuredText) {
-    throw new Error('A OpenAI API nao retornou uma grade estruturada.');
+    throw new Error('A Mistral API nao retornou uma grade estruturada.');
   }
 
   return JSON.parse(structuredText);
@@ -428,13 +536,15 @@ async function parseCurriculumSource(
     fileData = '',
     fileName = '',
     mimeType = '',
-    openaiApiKey = '',
-    openaiModel = DEFAULT_OPENAI_MODEL,
+    mistralApiKey = '',
+    mistralModel = DEFAULT_MISTRAL_MODEL,
+    mistralOcrModel = DEFAULT_MISTRAL_OCR_MODEL,
     sourceText = '',
   },
   {
     docxTextExtractor = extractDocxText,
-    openaiClient = null,
+    mistralClient = null,
+    pdfTextExtractor = extractPdfTextWithMistral,
   } = {},
 ) {
   const extension = getFileExtension(fileName, mimeType);
@@ -460,9 +570,11 @@ async function parseCurriculumSource(
     }
   }
 
-  if (!openaiApiKey) {
-    throw new Error('Configure OPENAI_API_KEY no backend para importar PDF, DOCX ou grades nao estruturadas.');
+  if (!mistralApiKey) {
+    throw new Error('Configure MISTRAL_API_KEY no backend para importar PDF, DOCX ou grades nao estruturadas.');
   }
+
+  let aiSourceText = normalizedSource;
 
   if (fileData) {
     const decodedFile = decodeFileData(fileData);
@@ -470,20 +582,29 @@ async function parseCurriculumSource(
     if (PDF_EXTENSIONS.has(extension) && !decodedFile.mimeType.includes('pdf')) {
       throw new Error('O arquivo enviado nao parece ser um PDF valido.');
     }
+
+    if (!aiSourceText && PDF_EXTENSIONS.has(extension)) {
+      aiSourceText = await pdfTextExtractor({
+        fileData: decodedFile.dataUrl,
+        fileName,
+        mistralApiKey,
+        mistralClient,
+        mistralOcrModel,
+      });
+    }
   }
 
-  const aiPayload = await parseWithOpenAI({
-    fileData: PDF_EXTENSIONS.has(extension) ? String(fileData || '').trim() : '',
+  const aiPayload = await parseWithMistral({
     fileName,
-    openaiApiKey,
-    openaiClient,
-    openaiModel,
-    sourceText: normalizedSource,
+    mistralApiKey,
+    mistralClient,
+    mistralModel,
+    sourceText: aiSourceText,
   });
 
   return normalizeCurriculum(aiPayload, {
     fileName,
-    sourceText: normalizedSource,
+    sourceText: aiSourceText,
   });
 }
 

@@ -206,8 +206,9 @@ function createApp({
         fileData,
         fileName,
         mimeType,
-        openaiApiKey: config.openaiApiKey,
-        openaiModel: config.openaiModel,
+        mistralApiKey: config.mistralApiKey,
+        mistralModel: config.mistralModel,
+        mistralOcrModel: config.mistralOcrModel,
         sourceText,
       });
 

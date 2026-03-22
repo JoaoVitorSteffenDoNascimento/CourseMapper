@@ -13,6 +13,9 @@ const originalEnv = {
   STORAGE_DRIVER: process.env.STORAGE_DRIVER,
   USERS_FILE: process.env.USERS_FILE,
   DATABASE_URL: process.env.DATABASE_URL,
+  MISTRAL_API_KEY: process.env.MISTRAL_API_KEY,
+  MISTRAL_MODEL: process.env.MISTRAL_MODEL,
+  MISTRAL_OCR_MODEL: process.env.MISTRAL_OCR_MODEL,
 }
 
 function loadConfig() {
@@ -38,6 +41,9 @@ describe('config', () => {
     process.env.STORAGE_DRIVER = 'postgres'
     process.env.USERS_FILE = 'backend/data/custom-users.json'
     process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/db'
+    process.env.MISTRAL_API_KEY = 'mistral-key'
+    process.env.MISTRAL_MODEL = 'mistral-small-latest'
+    process.env.MISTRAL_OCR_MODEL = 'mistral-ocr-latest'
 
     const config = loadConfig()
 
@@ -48,5 +54,8 @@ describe('config', () => {
     expect(config.storageDriver).toBe('postgres')
     expect(config.usersFile).toBe(path.resolve(process.cwd(), 'backend/data/custom-users.json'))
     expect(config.databaseUrl).toBe('postgresql://user:pass@localhost:5432/db')
+    expect(config.mistralApiKey).toBe('mistral-key')
+    expect(config.mistralModel).toBe('mistral-small-latest')
+    expect(config.mistralOcrModel).toBe('mistral-ocr-latest')
   })
 })

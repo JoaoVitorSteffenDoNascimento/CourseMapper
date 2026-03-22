@@ -96,7 +96,7 @@ describe('backend app routes', () => {
     app = createApp({
       curriculumRepository,
       userRepository: repo,
-      config: { storageDriver: 'file', openaiApiKey: '' },
+      config: { storageDriver: 'file', mistralApiKey: '' },
       emailDomainValidator: async () => true,
     })
   })
@@ -204,7 +204,7 @@ describe('backend app routes', () => {
     app = createApp({
       curriculumRepository,
       userRepository: repo,
-      config: { storageDriver: 'file', openaiApiKey: '' },
+      config: { storageDriver: 'file', mistralApiKey: '' },
       emailDomainValidator: async () => true,
     })
 

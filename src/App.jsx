@@ -579,7 +579,7 @@ function SettingsPage({
             <textarea
               value={importForm.sourceText}
               onChange={(event) => setImportForm((current) => ({ ...current, sourceText: event.target.value }))}
-              placeholder="Cole aqui a grade curricular em texto, CSV ou JSON. Para PDF e DOCX, a OpenAI estrutura pre e correquisitos no backend."
+              placeholder="Cole aqui a grade curricular em texto, CSV ou JSON. Para PDF e DOCX, a Mistral le a grade e estrutura pre e correquisitos no backend."
               rows={10}
             />
           </label>
