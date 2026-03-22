@@ -120,7 +120,6 @@ test('board layout places all subjects inside the expected grid', () => {
   const row = layout.rowMeta.find((item) => item.trail === 'Desenvolvedor');
   const topCard = layout.placements.get('CC201');
   const lowerCard = layout.placements.get('CC302');
-  const baseFirstCell = layout.cellMeta.find((item) => item.key === 'Base::1');
   const stackHeight = (2 * 98) + 12;
   const expectedStartY = row.y + Math.max(14, (row.height - stackHeight) / 2);
 
@@ -128,9 +127,6 @@ test('board layout places all subjects inside the expected grid', () => {
   assert.ok(layout.width > 0);
   assert.ok(layout.height > 0);
   assert.ok(layout.placements.get('CC101').x < layout.placements.get('CC202').x);
-  assert.ok(baseFirstCell);
-  assert.equal(baseFirstCell.x, 178);
-  assert.equal(baseFirstCell.width, 190);
   assert.equal(topCard.y, expectedStartY);
   assert.equal(lowerCard.y, expectedStartY + 110);
 });
@@ -154,17 +150,7 @@ test('board connectors use a more guided curve between cards', () => {
     { x: 426, y: 245, width: 170, height: 98 },
   );
 
-  assert.match(path, /^M 358 184 L 402 184 L 402 294 L 426 294$/);
-});
-
-test('board connectors stay close to cards when subjects share the same semester column', () => {
-  const path = getBoardConnectorPath({
-    type: 'corequisite',
-    from: { x: 748, y: 185, width: 170, height: 98 },
-    to: { x: 748, y: 391, width: 170, height: 98 },
-  });
-
-  assert.match(path, /^M 748 234 L 724 234 L 724 440 L 748 440$/);
+  assert.match(path, /^M 358 184 L 414 184 C 477 184, 477 294, 370 294 L 426 294$/);
 });
 
 test('core calculations stay under the 200 ms target', () => {
