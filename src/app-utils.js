@@ -172,8 +172,6 @@ export const boardMetrics = {
   cardHeight: 98,
   cardGap: 12,
   rowGap: 24,
-  bandInsetX: 12,
-  bandInsetY: 8,
 };
 
 export function getTrailSlug(trail) {
@@ -224,40 +222,39 @@ export function buildBoardLayout(subjects, trailOrder, semesters) {
     const rowHeight = (maxStack * boardMetrics.cardHeight)
       + ((maxStack - 1) * boardMetrics.cardGap)
       + (boardMetrics.cellPaddingY * 2);
-    rowMeta.push({ trail, y: currentY, height: rowHeight });
+    rowMeta.push({ trail, y: currentY, height: rowHeight, maxStack });
     currentY += rowHeight + boardMetrics.rowGap;
   });
 
   const placements = new Map();
-  const cellMeta = [];
+  const slotMeta = [];
 
   rowMeta.forEach((row) => {
     semesters.forEach((semester, columnIndex) => {
       const cellKey = `${row.trail}::${semester}`;
       const items = cellSubjects.get(cellKey) || [];
-      const stackHeight = items.length > 0
-        ? (items.length * boardMetrics.cardHeight) + ((items.length - 1) * boardMetrics.cardGap)
-        : 0;
-      const startY = row.y + Math.max(
-        boardMetrics.cellPaddingY,
-        (row.height - stackHeight) / 2,
-      );
+      const slotX = boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.cellPaddingX;
+      const slotWidth = boardMetrics.columnWidth - (boardMetrics.cellPaddingX * 2);
+      const startY = row.y + boardMetrics.cellPaddingY;
 
-      cellMeta.push({
-        key: cellKey,
-        trail: row.trail,
-        semester,
-        x: boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.bandInsetX,
-        y: row.y + boardMetrics.bandInsetY,
-        width: boardMetrics.columnWidth - (boardMetrics.bandInsetX * 2),
-        height: row.height - (boardMetrics.bandInsetY * 2),
+      Array.from({ length: row.maxStack }).forEach((_, slotIndex) => {
+        slotMeta.push({
+          key: `${cellKey}::${slotIndex}`,
+          trail: row.trail,
+          semester,
+          x: slotX,
+          y: startY + (slotIndex * (boardMetrics.cardHeight + boardMetrics.cardGap)),
+          width: slotWidth,
+          height: boardMetrics.cardHeight,
+          occupied: slotIndex < items.length,
+        });
       });
 
       items.forEach((subject, index) => {
         placements.set(subject.id, {
-          x: boardMetrics.labelColumnWidth + (columnIndex * boardMetrics.columnWidth) + boardMetrics.cellPaddingX,
+          x: slotX,
           y: startY + (index * (boardMetrics.cardHeight + boardMetrics.cardGap)),
-          width: boardMetrics.columnWidth - (boardMetrics.cellPaddingX * 2),
+          width: slotWidth,
           height: boardMetrics.cardHeight,
         });
       });
@@ -266,7 +263,7 @@ export function buildBoardLayout(subjects, trailOrder, semesters) {
 
   return {
     rowMeta,
-    cellMeta,
+    slotMeta,
     placements,
     width: boardMetrics.labelColumnWidth + (semesters.length * boardMetrics.columnWidth),
     height: Math.max(boardMetrics.headerHeight, currentY - boardMetrics.rowGap),
