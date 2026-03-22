@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CourseMapper</title>
+    <script>
+      (function redirectToHashRoute() {
+        var pathname = window.location.pathname || '/';
+        var segments = pathname.split('/').filter(Boolean);
+        var repoBase = segments.length > 0 ? '/' + segments[0] : '';
+        var appPath = segments.length > 1 ? '/' + segments.slice(1).join('/') : '/';
+        var target = repoBase + '/#' + appPath + window.location.search + window.location.hash;
+        window.location.replace(target);
+      }());
+    </script>
+  </head>
+  <body></body>
+</html>
