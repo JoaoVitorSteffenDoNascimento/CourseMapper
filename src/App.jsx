@@ -245,10 +245,10 @@ function Sidebar({
   mapData,
   onLogout,
 }) {
-  const activeCourseId = mapData?.course?.id || selectedCourseId;
-  const activeCatalogKey = mapData?.course?.catalogKey || selectedCatalogKey;
-  const selectedGroup = curriculumGroups.find((group) => group.key === activeCatalogKey)
-    || curriculumGroups.find((group) => group.versions.some((curriculum) => curriculum.id === activeCourseId))
+  const activeCourseId = selectedCourseId;
+  const activeCatalogKey = selectedCatalogKey;
+  const selectedGroup = curriculumGroups.find((group) => group.versions.some((curriculum) => curriculum.id === activeCourseId))
+    || curriculumGroups.find((group) => group.key === activeCatalogKey)
     || curriculumGroups[0]
     || null;
 
@@ -630,7 +630,7 @@ function Dashboard({
   const currentPage = pageLabels[routeKey] ? routeKey : 'overview';
   const curriculumGroups = groupCurriculumsByCatalog(curriculums);
   const selectedCurriculum = curriculums.find((item) => item.id === selectedCourseId) || curriculumGroups[0]?.versions?.[0] || null;
-  const selectedCatalogKey = mapData?.course?.catalogKey || selectedCurriculum?.catalogKey || curriculumGroups[0]?.key || '';
+  const selectedCatalogKey = selectedCurriculum?.catalogKey || curriculumGroups[0]?.key || '';
 
   function handleNavigate(page) {
     if (page === 'board') {
