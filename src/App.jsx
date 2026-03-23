@@ -141,7 +141,7 @@ async function apiRequest(path, options = {}, token = '') {
   } catch (error) {
     const fallbackUrl = getApiFallbackUrl();
     const shouldRetry =
-      API_BASE_URL === '/api' &&
+      fallbackUrl &&
       fallbackUrl !== API_BASE_URL &&
       shouldRetryWithFallback(error);
 
