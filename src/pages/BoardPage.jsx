@@ -14,8 +14,53 @@ import {
   statusOrder,
 } from '../app-utils.js';
 
+function getTrailFamily(trail) {
+  const value = String(trail || 'Base').trim();
+  const match = value.match(/^(.*?)(?:\s*-\s*([IVXLCDM]+|\d+))?$/i);
+  const family = String(match?.[1] || value).trim();
+  return family || 'Base';
+}
+
+function getTrailStage(trail) {
+  const value = String(trail || '').trim();
+  const match = value.match(/(?:^|-\s*)([IVXLCDM]+|\d+)$/i);
+  return String(match?.[1] || '').trim();
+}
+
+function compareTrailStages(first, second) {
+  const firstStage = getTrailStage(first);
+  const secondStage = getTrailStage(second);
+
+  if (firstStage && secondStage) {
+    const firstNumeric = Number(firstStage);
+    const secondNumeric = Number(secondStage);
+
+    if (!Number.isNaN(firstNumeric) && !Number.isNaN(secondNumeric) && firstNumeric !== secondNumeric) {
+      return firstNumeric - secondNumeric;
+    }
+
+    const romanOrder = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+    const firstRomanIndex = romanOrder.indexOf(firstStage.toUpperCase());
+    const secondRomanIndex = romanOrder.indexOf(secondStage.toUpperCase());
+
+    if (firstRomanIndex !== -1 && secondRomanIndex !== -1 && firstRomanIndex !== secondRomanIndex) {
+      return firstRomanIndex - secondRomanIndex;
+    }
+  }
+
+  return String(first).localeCompare(String(second));
+}
+
 function sortSubjects(items) {
   return [...items].sort((first, second) => {
+    if (getTrailFamily(first.trail) !== getTrailFamily(second.trail)) {
+      return getTrailFamily(first.trail).localeCompare(getTrailFamily(second.trail));
+    }
+
+    if (compareTrailStages(first.trail, second.trail) !== 0) {
+      return compareTrailStages(first.trail, second.trail);
+    }
+
     if (statusOrder[first.status] !== statusOrder[second.status]) {
       return statusOrder[first.status] - statusOrder[second.status];
     }
@@ -26,15 +71,18 @@ function sortSubjects(items) {
 
 function buildBoardDesktopModel(mapData) {
   const semesters = [...new Set(mapData.subjects.map((subject) => subject.semester))].sort((a, b) => a - b);
-  const trails = getTrailOrder(mapData.subjects, mapData.course.trailLabels);
+  const trailFamilies = getTrailOrder(
+    mapData.subjects.map((subject) => ({ ...subject, trail: getTrailFamily(subject.trail) })),
+    mapData.course.trailLabels,
+  );
   const cells = new Map();
   const subjectMap = new Map(mapData.subjects.map((subject) => [subject.id, subject]));
   const edges = [];
 
-  trails.forEach((trail) => {
+  trailFamilies.forEach((trailFamily) => {
     semesters.forEach((semester) => {
-      const key = `${trail}::${semester}`;
-      const items = mapData.subjects.filter((subject) => subject.trail === trail && subject.semester === semester);
+      const key = `${trailFamily}::${semester}`;
+      const items = mapData.subjects.filter((subject) => getTrailFamily(subject.trail) === trailFamily && subject.semester === semester);
       cells.set(key, sortSubjects(items));
     });
   });
@@ -54,7 +102,7 @@ function buildBoardDesktopModel(mapData) {
     });
   });
 
-  return { semesters, trails, cells, edges };
+  return { semesters, trails: trailFamilies, cells, edges };
 }
 
 function buildDirectConnectorPath(source, target) {
@@ -364,7 +412,7 @@ function DesktopBoard({ actionLoadingId, onToggleSubject, semesters, trails, cel
                             <span className="board-subject-check" aria-hidden="true" />
                             <div className="board-subject-content">
                               <div className="board-subject-topline">
-                                <span className="board-subject-trail">{subject.trail}</span>
+                                <span className="board-subject-trail">{getTrailStage(subject.trail) || getTrailFamily(subject.trail)}</span>
                                 <span className="board-subject-code">{subject.id}</span>
                               </div>
                               <strong>{subject.name}</strong>
