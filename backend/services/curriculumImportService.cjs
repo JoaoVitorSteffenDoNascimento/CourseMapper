@@ -465,6 +465,25 @@ function sanitizeSubject(subject, index) {
   };
 }
 
+function createsPrerequisiteCycle(subjectId, prerequisiteId, graph) {
+  const visited = new Set();
+
+  function visit(currentId) {
+    if (currentId === subjectId) {
+      return true;
+    }
+
+    if (visited.has(currentId)) {
+      return false;
+    }
+
+    visited.add(currentId);
+    return (graph.get(currentId) || []).some((nextId) => visit(nextId));
+  }
+
+  return visit(prerequisiteId);
+}
+
 function extractAcademicYear(...values) {
   const yearPattern = /\b(19|20)\d{2}\b/g;
   const compactYearPattern = /(?:^|[^\d])((?:19|20)\d{2})\d{2}(?!\d)/g;
@@ -842,11 +861,27 @@ function normalizeCurriculum(parsedCurriculum, { fileName = '', sourceText = '' 
   }
 
   const subjectIds = new Set(rawSubjects.map((subject) => subject.id));
-  const subjects = rawSubjects.map((subject) => ({
-    ...subject,
-    prerequisites: uniqueList(subject.prerequisites.filter((item) => subjectIds.has(item) && item !== subject.id)),
-    corequisites: uniqueList(subject.corequisites.filter((item) => subjectIds.has(item) && item !== subject.id)),
-  }));
+  const prerequisiteGraph = new Map(rawSubjects.map((subject) => [subject.id, []]));
+  const subjects = rawSubjects.map((subject) => {
+    const nextCorequisites = uniqueList(subject.corequisites.filter((item) => subjectIds.has(item) && item !== subject.id));
+    const nextPrerequisites = [];
+
+    for (const prerequisiteId of uniqueList(subject.prerequisites.filter((item) => subjectIds.has(item) && item !== subject.id))) {
+      if (createsPrerequisiteCycle(subject.id, prerequisiteId, prerequisiteGraph)) {
+        nextCorequisites.push(prerequisiteId);
+        continue;
+      }
+
+      nextPrerequisites.push(prerequisiteId);
+      prerequisiteGraph.get(subject.id).push(prerequisiteId);
+    }
+
+    return {
+      ...subject,
+      prerequisites: uniqueList(nextPrerequisites),
+      corequisites: uniqueList(nextCorequisites),
+    };
+  });
 
   const catalogName = inferCatalogName(parsedCurriculum);
   const academicYear = extractAcademicYear(

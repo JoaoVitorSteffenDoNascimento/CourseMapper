@@ -47,20 +47,29 @@ function buildChildrenMap(subjects) {
 
 function createDepthCalculator(childrenMap) {
   const memo = new Map();
+  const visiting = new Set();
 
   function getDepth(subjectId) {
     if (memo.has(subjectId)) {
       return memo.get(subjectId);
     }
 
+    if (visiting.has(subjectId)) {
+      return 1;
+    }
+
+    visiting.add(subjectId);
+
     const children = childrenMap.get(subjectId) || [];
 
     if (children.length === 0) {
+      visiting.delete(subjectId);
       memo.set(subjectId, 1);
       return 1;
     }
 
     const depth = 1 + Math.max(...children.map((childId) => getDepth(childId)));
+    visiting.delete(subjectId);
     memo.set(subjectId, depth);
     return depth;
   }
@@ -103,11 +112,17 @@ function getCriticalPath(subjects, childrenMap) {
   return criticalIds;
 }
 
-function collectDependentSubjects(subjectId, childrenMap, cache, visited = new Set()) {
+function collectDependentSubjects(subjectId, childrenMap, cache, visited = new Set(), visiting = new Set()) {
   if (cache.has(subjectId)) {
     cache.get(subjectId).forEach((dependentId) => visited.add(dependentId));
     return visited;
   }
+
+  if (visiting.has(subjectId)) {
+    return visited;
+  }
+
+  visiting.add(subjectId);
 
   const resolved = new Set();
   const directChildren = childrenMap.get(subjectId) || [];
@@ -115,10 +130,11 @@ function collectDependentSubjects(subjectId, childrenMap, cache, visited = new S
   directChildren.forEach((childId) => {
     if (!resolved.has(childId)) {
       resolved.add(childId);
-      collectDependentSubjects(childId, childrenMap, cache, resolved);
+      collectDependentSubjects(childId, childrenMap, cache, resolved, visiting);
     }
   });
 
+  visiting.delete(subjectId);
   cache.set(subjectId, resolved);
   resolved.forEach((dependentId) => visited.add(dependentId));
   return visited;

@@ -261,23 +261,35 @@ export function buildBoardLayout(subjects, trailOrder, semesters) {
   };
 }
 
-function countRemainingChain(subjectId, pendingIds, subjectMap, memo = new Map()) {
+function countRemainingChain(subjectId, pendingIds, subjectMap, memo = new Map(), visiting = new Set()) {
   if (memo.has(subjectId)) {
     return memo.get(subjectId);
   }
 
   const subject = subjectMap.get(subjectId);
+  if (!subject) {
+    memo.set(subjectId, 1);
+    return 1;
+  }
+
+  if (visiting.has(subjectId)) {
+    return 1;
+  }
+
+  visiting.add(subjectId);
   const pendingPrerequisites = subject.prerequisites.filter((prerequisiteId) => pendingIds.has(prerequisiteId));
 
   if (pendingPrerequisites.length === 0) {
+    visiting.delete(subjectId);
     memo.set(subjectId, 1);
     return 1;
   }
 
   const depth = 1 + Math.max(...pendingPrerequisites.map((prerequisiteId) => (
-    countRemainingChain(prerequisiteId, pendingIds, subjectMap, memo)
+    countRemainingChain(prerequisiteId, pendingIds, subjectMap, memo, visiting)
   )));
 
+  visiting.delete(subjectId);
   memo.set(subjectId, depth);
   return depth;
 }

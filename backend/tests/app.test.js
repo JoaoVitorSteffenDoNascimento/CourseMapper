@@ -247,4 +247,34 @@ describe('backend app routes', () => {
     expect(response.body.curriculums.some((curriculum) => curriculum.code === 'ADS')).toBe(true)
     expect(response.body.curriculums.some((curriculum) => curriculum.catalogKey === 'ads')).toBe(true)
   })
+
+  it('gera mapa sem estourar a pilha quando a grade possui ciclo legado', async () => {
+    curriculumRepository = createInMemoryCurriculumRepository([
+      {
+        id: 'cyc',
+        code: 'CYC',
+        name: 'Curso Ciclico',
+        trailLabels: ['Base'],
+        subjects: [
+          { id: 'CYC101', name: 'Disciplina A', semester: 1, trail: 'Base', prerequisites: ['CYC102'], corequisites: [] },
+          { id: 'CYC102', name: 'Disciplina B', semester: 1, trail: 'Base', prerequisites: ['CYC101'], corequisites: [] },
+        ],
+      },
+    ])
+
+    app = createApp({
+      curriculumRepository,
+      userRepository: repo,
+      config: { storageDriver: 'file', mistralApiKey: '' },
+      emailDomainValidator: async () => true,
+    })
+
+    const response = await request(app)
+      .get('/api/map?courseId=cyc')
+      .set('Authorization', 'Bearer token-1')
+
+    expect(response.status).toBe(200)
+    expect(response.body.stats.remainingCriticalSemesters).toBeGreaterThanOrEqual(0)
+    expect(response.body.subjects).toHaveLength(2)
+  })
 })

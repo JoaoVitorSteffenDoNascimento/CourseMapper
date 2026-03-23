@@ -233,4 +233,22 @@ describe('curriculum import service', () => {
     expect(curriculum.subjects.find((subject) => subject.id === '383520')?.prerequisites).toEqual(['383480'])
     expect(curriculum.subjects.find((subject) => subject.id === '383520')?.corequisites).toEqual(['383530'])
   })
+
+  it('quebra ciclos de pre-requisitos durante a normalizacao', async () => {
+    const curriculum = await parseCurriculumSource({
+      fileName: 'ciclo.json',
+      sourceText: JSON.stringify({
+        code: 'CIC',
+        name: 'Curso Ciclico 2026',
+        subjects: [
+          { id: 'CIC101', name: 'Disciplina A', semester: 1, trail: 'Base', prerequisites: ['CIC102'], corequisites: [] },
+          { id: 'CIC102', name: 'Disciplina B', semester: 1, trail: 'Base', prerequisites: ['CIC101'], corequisites: [] },
+        ],
+      }),
+    })
+
+    expect(curriculum.subjects.find((subject) => subject.id === 'CIC101')?.prerequisites).toEqual(['CIC102'])
+    expect(curriculum.subjects.find((subject) => subject.id === 'CIC102')?.prerequisites).toEqual([])
+    expect(curriculum.subjects.find((subject) => subject.id === 'CIC102')?.corequisites).toContain('CIC101')
+  })
 })
