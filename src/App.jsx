@@ -5,6 +5,7 @@ import {
   buildOptimisticMapData,
   canOptimisticallyToggleSubject,
   formatRegistration,
+  getCurriculumCatalogName,
   getCurriculumVersionLabel,
   getFirstCurriculumIdForCatalog,
   getCriticalSubjects,
@@ -40,6 +41,16 @@ const setStoredToken = (token) => token ? window.localStorage.setItem(TOKEN_STOR
 const getStoredTheme = () => window.localStorage.getItem(THEME_STORAGE_KEY) || 'brand';
 const setStoredTheme = (theme) => window.localStorage.setItem(THEME_STORAGE_KEY, theme);
 const shouldUseLocalApiFallback = () => ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const getTrailFamily = (trail) => String(trail || 'Base').split(/\s*-\s*/)[0].trim() || 'Base';
+const getUniqueTrailFamilies = (subjects = [], trailLabels = []) => {
+  const values = [
+    ...trailLabels.map(getTrailFamily),
+    ...subjects.map((subject) => getTrailFamily(subject.trail)),
+  ];
+
+  return [...new Set(values.filter(Boolean))];
+};
+
 const preloadBoardPage = () => {
   if (!boardPagePreloadPromise) {
     boardPagePreloadPromise = loadBoardPage();
@@ -182,6 +193,8 @@ function Avatar({ user, large = false }) {
 }
 
 function AuthScreen({ authMode, form, setForm, onSubmit, setAuthMode, loading, error, curriculums }) {
+  const curriculumGroups = groupCurriculumsByCatalog(curriculums);
+
   return (
     <div className="auth-shell">
       <section className="auth-hero">
@@ -215,7 +228,11 @@ function AuthScreen({ authMode, form, setForm, onSubmit, setAuthMode, loading, e
           {authMode === 'register' ? (
             <label>Curso
               <select value={form.courseId} onChange={(event) => setForm((current) => ({ ...current, courseId: event.target.value }))}>
-                {curriculums.map((curriculum) => <option key={curriculum.id} value={curriculum.id}>{`${curriculum.name} - ${getCurriculumVersionLabel(curriculum)}`}</option>)}
+                {curriculumGroups.map((group) => (
+                  <option key={group.key} value={group.versions[0]?.id || ''}>
+                    {group.code ? `${group.code} • ${group.name}` : group.name}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
@@ -251,6 +268,7 @@ function Sidebar({
     || curriculumGroups.find((group) => group.key === activeCatalogKey)
     || curriculumGroups[0]
     || null;
+  const trailFamilies = getUniqueTrailFamilies(mapData?.subjects, mapData?.course?.trailLabels);
 
   return (
     <aside className="sidebar">
@@ -278,19 +296,31 @@ function Sidebar({
       </div>
       <div className="sidebar-block">
         <p className="sidebar-label">Curso</p>
-        <select className="sidebar-select" value={selectedGroup?.key || activeCatalogKey} onChange={(event) => onSelectCatalogKey(event.target.value)}>
-          {curriculumGroups.map((group) => <option key={group.key} value={group.key}>{group.code ? `${group.code} - ${group.name}` : group.name}</option>)}
-        </select>
+        <div className="sidebar-select-wrap">
+          <select className="sidebar-select" value={selectedGroup?.key || activeCatalogKey} onChange={(event) => onSelectCatalogKey(event.target.value)}>
+            {curriculumGroups.map((group) => (
+              <option key={group.key} value={group.key}>
+                {group.code ? `${group.code} • ${group.name}` : group.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <p className="sidebar-label">Versao da grade</p>
-        <select className="sidebar-select" value={activeCourseId} onChange={(event) => onSelectCourseId(event.target.value)}>
-          {(selectedGroup?.versions || []).map((curriculum) => (
-            <option key={curriculum.id} value={curriculum.id}>
-              {getCurriculumVersionLabel(curriculum)}
-            </option>
-          ))}
-        </select>
-        <div className="tag-list">
-          {(mapData?.course.trailLabels || []).map((trail) => <span key={trail}>{trail}</span>)}
+        <div className="sidebar-select-wrap">
+          <select className="sidebar-select" value={activeCourseId} onChange={(event) => onSelectCourseId(event.target.value)}>
+            {(selectedGroup?.versions || []).map((curriculum) => (
+              <option key={curriculum.id} value={curriculum.id}>
+                {getCurriculumVersionLabel(curriculum)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="sidebar-course-note">
+          <strong>{selectedGroup?.code || mapData?.course?.baseCode || mapData?.course?.code || '--'}</strong>
+          <span>{selectedGroup ? getCurriculumCatalogName(selectedGroup.versions[0]) : mapData?.course?.name}</span>
+        </div>
+        <div className="tag-list compact">
+          {trailFamilies.map((trail) => <span key={trail}>{trail}</span>)}
         </div>
       </div>
       <div className="sidebar-user">

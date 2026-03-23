@@ -100,6 +100,17 @@ function buildBoardDesktopModel(mapData) {
         type: 'prerequisite',
       });
     });
+
+    subject.corequisites
+      .filter((corequisiteId) => subject.id.localeCompare(corequisiteId) < 0 && subjectMap.has(corequisiteId))
+      .forEach((corequisiteId) => {
+        edges.push({
+          id: `${subject.id}-${corequisiteId}`,
+          fromId: subject.id,
+          toId: corequisiteId,
+          type: 'corequisite',
+        });
+      });
   });
 
   return { semesters, trails: trailFamilies, cells, edges };
@@ -153,12 +164,22 @@ function buildJunctionToTargetPath(junction, target) {
 
 function buildConnectorSegments(edges, nodes) {
   const groupedEdges = new Map();
+  const segments = [];
 
   edges.forEach((edge) => {
     const source = nodes[edge.fromId];
     const target = nodes[edge.toId];
 
     if (!source || !target) {
+      return;
+    }
+
+    if (edge.type === 'corequisite') {
+      segments.push({
+        id: `${edge.id}-corequisite`,
+        type: 'corequisite',
+        d: buildDirectConnectorPath(source, target),
+      });
       return;
     }
 
@@ -172,8 +193,6 @@ function buildConnectorSegments(edges, nodes) {
       target,
     });
   });
-
-  const segments = [];
 
   groupedEdges.forEach((group, toId) => {
     const target = nodes[toId];
@@ -453,6 +472,7 @@ function BoardPage({ mapData, actionLoadingId, onToggleSubject }) {
           <div><p className="section-kicker">Mapa por fluxo</p><h3>{mapData.course.name}</h3></div>
           <div className="board-legend">
             <span className="legend-item"><i className="legend-line prerequisite" />Pre-requisito</span>
+            <span className="legend-item"><i className="legend-line corequisite" />Correquisito</span>
           </div>
         </div>
         <DesktopBoard

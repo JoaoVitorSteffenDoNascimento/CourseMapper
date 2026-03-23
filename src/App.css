@@ -347,6 +347,10 @@
   gap: 8px;
 }
 
+.tag-list.compact {
+  gap: 6px;
+}
+
 .tag-list span,
 .status-pill,
 .critical-chip,
@@ -363,6 +367,55 @@
   background: var(--tag-bg);
   color: var(--tag-text);
   border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
+}
+
+.tag-list.compact span {
+  padding: 5px 9px;
+  font-size: 0.68rem;
+}
+
+.sidebar-select-wrap {
+  position: relative;
+}
+
+.sidebar-select-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+}
+
+.sidebar-select {
+  appearance: none;
+  padding-right: 36px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-subtle) 40%, transparent)),
+    var(--input-bg);
+  box-shadow: 0 10px 24px color-mix(in srgb, black 6%, transparent);
+}
+
+.sidebar-course-note {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 82%, transparent);
+}
+
+.sidebar-course-note strong {
+  color: var(--text-primary);
+  font-size: 0.84rem;
+}
+
+.sidebar-course-note span {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .sidebar-user {
@@ -596,7 +649,9 @@
 
 .legend-line.corequisite {
   border-top-style: dashed;
-  border-top-color: color-mix(in srgb, var(--text-secondary) 72%, var(--accent));
+  border-top-width: 3px;
+  border-top-color: color-mix(in srgb, #78a8ff 68%, var(--accent));
+  opacity: 1;
 }
 
 .board-scroll {
@@ -859,9 +914,11 @@
 }
 
 .board-edge.corequisite {
-  stroke: color-mix(in srgb, var(--text-secondary) 72%, var(--accent));
-  stroke-dasharray: 0.38rem 0.52rem;
-  opacity: 0.76;
+  stroke: color-mix(in srgb, #78a8ff 72%, var(--accent));
+  stroke-dasharray: 0.44rem 0.4rem;
+  stroke-width: 0.17rem;
+  opacity: 0.95;
+  filter: drop-shadow(0 1px 6px color-mix(in srgb, #78a8ff 18%, transparent));
 }
 
 .board-junction {
