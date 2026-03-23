@@ -371,12 +371,6 @@ async function extractPdfTextWithMistral({
       type: 'document_url',
       document_url: fileData,
     },
-    document_annotation_format: { type: 'text' },
-    document_annotation_prompt: [
-      'Extraia o texto da grade curricular preservando codigos, nomes de disciplinas, semestres, pre-requisitos e correquisitos.',
-      'Mantenha a hierarquia de tabelas e listas em markdown simples.',
-      `Arquivo de origem: ${fileName || 'grade.pdf'}.`,
-    ].join(' '),
     table_format: 'markdown',
   });
 
