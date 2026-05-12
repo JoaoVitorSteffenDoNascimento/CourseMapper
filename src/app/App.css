@@ -287,9 +287,9 @@
 .dashboard-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 18px;
-  padding: 18px 18px 96px;
+  grid-template-columns: 260px 1fr;
+  gap: 20px;
+  padding: 20px 20px 96px;
 }
 
 .sidebar {
@@ -1316,8 +1316,50 @@
   background: linear-gradient(90deg, color-mix(in srgb, var(--progress-fill) 45%, var(--progress-track)), var(--progress-fill));
 }
 
-@media (max-width: 1180px) {
-  .dashboard-shell,
+@media (max-width: 1280px) {
+  .dashboard-shell {
+    gap: 16px;
+    padding: 16px 16px 88px;
+  }
+
+  .sidebar {
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .dashboard-main {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-shell {
+    grid-template-columns: 220px 1fr;
+    gap: 14px;
+    padding: 14px 14px 80px;
+  }
+
+  .sidebar {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .sidebar h2 {
+    font-size: 0.95rem;
+  }
+
+  .nav-list {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-shell {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px 12px 80px;
+  }
+
   .auth-shell,
   .content-grid.two-columns,
   .stats-strip {
@@ -1329,7 +1371,8 @@
   }
 
   .sidebar {
-    gap: 14px;
+    gap: 12px;
+    padding: 16px;
   }
 
   .sidebar-user {
