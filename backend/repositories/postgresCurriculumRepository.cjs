@@ -109,6 +109,20 @@ class PostgresCurriculumRepository {
 
     return curriculum;
   }
+
+  async delete(id) {
+    await this.init();
+    const result = await this.query(
+      `delete from imported_curriculums where id = $1`,
+      [id],
+    );
+
+    if (result.rowCount === 0) {
+      throw new Error(`Currículo com ID ${id} não encontrado.`);
+    }
+
+    return true;
+  }
 }
 
 module.exports = PostgresCurriculumRepository;

@@ -58,6 +58,32 @@ function registerCurriculumRoutes(app, {
       return res.status(400).json({ error: error.message || 'Falha ao importar a grade curricular.' });
     }
   });
+
+  app.delete('/api/curriculums/:curriculumId', async (req, res) => {
+    const user = await getAuthenticatedUser(req);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Sessao invalida.' });
+    }
+
+    const curriculumId = String(req.params.curriculumId || '').trim();
+
+    if (!curriculumId) {
+      return res.status(400).json({ error: 'ID do currículo inválido.' });
+    }
+
+    try {
+      await curriculumRepository.delete(curriculumId);
+      const summary = await buildCurriculumSummary();
+
+      return res.json({
+        message: 'Currículo deletado com sucesso.',
+        curriculums: summary,
+      });
+    } catch (error) {
+      return res.status(400).json({ error: error.message || 'Falha ao deletar o currículo.' });
+    }
+  });
 }
 
 module.exports = {

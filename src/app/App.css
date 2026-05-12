@@ -508,7 +508,7 @@
 
 .stats-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
 
@@ -544,7 +544,7 @@
 }
 
 .content-grid.two-columns {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
 
 .card-heading {
@@ -1300,6 +1300,43 @@
   grid-column: 1 / -1;
   display: flex;
   justify-content: flex-start;
+}
+
+.curriculums-list {
+  display: grid;
+  gap: 14px;
+}
+
+.curriculum-items {
+  display: grid;
+  gap: 10px;
+}
+
+.curriculum-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-strong) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 80%, transparent);
+}
+
+.curriculum-info {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+}
+
+.curriculum-info strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.curriculum-info p {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  margin: 0;
 }
 
 .mini-bar {

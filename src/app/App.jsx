@@ -275,6 +275,26 @@ export default function App() {
     }
   }
 
+  async function handleDeleteCurriculum(curriculumId) {
+    if (!window.confirm('Tem certeza que deseja deletar este currículo? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/curriculums/${curriculumId}`, {
+        method: 'DELETE',
+      }, token);
+
+      setCurriculums(response.curriculums);
+      if (selectedCourseId === curriculumId && response.curriculums.length > 0) {
+        setSelectedCourseId(response.curriculums[0].id);
+      }
+      setImportSuccess(`Currículo deletado com sucesso.`);
+    } catch (error) {
+      setImportError(error.message);
+    }
+  }
+
   if (loading) {
     return <div className="screen-message">Preparando sua área acadêmica...</div>;
   }
@@ -310,6 +330,7 @@ export default function App() {
       setSettingsForm={setSettingsForm}
       onSaveProfile={handleSaveProfile}
       onImportCurriculum={handleImportCurriculum}
+      onDeleteCurriculum={handleDeleteCurriculum}
       importForm={importForm}
       setImportForm={setImportForm}
       importLoading={importLoading}

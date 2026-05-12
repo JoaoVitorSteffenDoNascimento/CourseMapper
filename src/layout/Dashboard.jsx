@@ -29,6 +29,7 @@ export default function Dashboard({
   setSettingsForm,
   onSaveProfile,
   onImportCurriculum,
+  onDeleteCurriculum,
   importForm,
   setImportForm,
   importLoading,
@@ -119,10 +120,12 @@ export default function Dashboard({
               element={mapData ? (
                 <SettingsPage
                   user={user}
+                  curriculums={curriculums}
                   settingsForm={settingsForm}
                   setSettingsForm={setSettingsForm}
                   onSaveProfile={onSaveProfile}
                   onImportCurriculum={onImportCurriculum}
+                  onDeleteCurriculum={onDeleteCurriculum}
                   importForm={importForm}
                   setImportForm={setImportForm}
                   importLoading={importLoading}

@@ -4,10 +4,12 @@ import ThemeControl from '../components/common/ThemeControl.jsx';
 
 export default function SettingsPage({
   user,
+  curriculums,
   settingsForm,
   setSettingsForm,
   onSaveProfile,
   onImportCurriculum,
+  onDeleteCurriculum,
   importForm,
   setImportForm,
   importLoading,
@@ -150,6 +152,33 @@ export default function SettingsPage({
           {importSuccess ? <p className="form-success">{importSuccess}</p> : null}
           <div className="settings-actions"><button type="submit" className="primary-button" disabled={importLoading || !(importForm.sourceText.trim() || importForm.fileData)}>{importLoading ? 'Importando...' : 'Importar grade'}</button></div>
         </form>
+      </section>
+      <section className="surface-card">
+        <div className="card-heading"><div><p className="section-kicker">Gerenciar currículos</p><h3>Deletar grades</h3></div></div>
+        {curriculums && curriculums.length > 0 ? (
+          <div className="curriculums-list">
+            <p className="section-kicker">Currículos da sua conta ({curriculums.length})</p>
+            <div className="curriculum-items">
+              {curriculums.map((curriculum) => (
+                <div key={curriculum.id} className="curriculum-item">
+                  <div className="curriculum-info">
+                    <strong>{curriculum.code || curriculum.name || curriculum.id}</strong>
+                    <p>{curriculum.name}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="soft-button"
+                    onClick={() => onDeleteCurriculum(curriculum.id)}
+                  >
+                    Deletar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="section-kicker">Nenhum currículo encontrado.</p>
+        )}
       </section>
     </div>
   );

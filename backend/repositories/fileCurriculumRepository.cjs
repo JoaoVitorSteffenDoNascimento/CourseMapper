@@ -68,6 +68,19 @@ class FileCurriculumRepository {
     await this.writeCurriculums(curriculums);
     return curriculum;
   }
+
+  async delete(id) {
+    const curriculums = await this.readCurriculums();
+    const index = curriculums.findIndex((item) => item.id === id);
+
+    if (index === -1) {
+      throw new Error(`Currículo com ID ${id} não encontrado.`);
+    }
+
+    curriculums.splice(index, 1);
+    await this.writeCurriculums(curriculums);
+    return true;
+  }
 }
 
 module.exports = FileCurriculumRepository;
