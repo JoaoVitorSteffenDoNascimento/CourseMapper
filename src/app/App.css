@@ -391,6 +391,7 @@
 
 .sidebar-select {
   appearance: none;
+  width: min(100%, 240px);
   padding-right: 36px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-subtle) 40%, transparent)),
