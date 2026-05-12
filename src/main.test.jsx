@@ -8,7 +8,7 @@ vi.mock('react-dom/client', () => ({
   createRoot: createRootSpy,
 }))
 
-vi.mock('./App.jsx', () => ({
+vi.mock('./app/App.jsx', () => ({
   default: function MockApp() {
     return null
   },

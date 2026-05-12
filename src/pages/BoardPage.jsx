@@ -12,7 +12,7 @@ import {
   getTrailSlug,
   statusLabels,
   statusOrder,
-} from '../app-utils.js';
+} from '../app/app-utils.js';
 
 function getTrailFamily(trail) {
   const value = String(trail || 'Base').trim();

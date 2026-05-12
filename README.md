@@ -1,72 +1,46 @@
 # CourseMapper
 
-CourseMapper is a full-stack academic planning app for university students. It lets the user register, log in, view a curriculum map, track completed subjects, analyze progress, and personalize the dashboard theme.
+CourseMapper is a full-stack academic planning app for students. It supports registration and login, curriculum visualization, prerequisite-aware progress tracking, analytics, profile settings, and curriculum import from text/PDF/DOCX sources.
 
-The project has:
+## Stack
 
-- a React + Vite frontend
-- an Express backend
-- support for local JSON persistence or PostgreSQL/Neon
-- automated tests for frontend and backend
-
-## Features
-
-- authentication with registration number and password
-- curriculum visualization by semester
-- progress tracking with prerequisite validation
-- "next subjects" and critical path indicators
-- user profile settings with persisted theme
-- deploy-ready setup for Vercel, Render, and GitHub Pages
-
-## Tech Stack
-
-Frontend:
-
-- React 19
-- Vite
-- React Router
-- Testing Library
-- Vitest
-
-Backend:
-
-- Node.js
-- Express
-- CORS
-- Compression
-
-Persistence:
-
-- local JSON file
-- PostgreSQL
-- Neon serverless driver support
+- Frontend: React 19, Vite, React Router
+- Backend: Node.js, Express, CORS, Compression
+- Persistence: local JSON files or PostgreSQL/Neon
+- Tests: Vitest, Testing Library, Supertest
+- Deploy: Vercel frontend, Render backend, Neon database, optional GitHub Pages frontend
 
 ## Project Structure
 
 ```text
 .
+|-- api/
+|   `-- [...path].js              # Vercel API proxy to Render, optional
 |-- backend/
-|   |-- app.cjs
-|   |-- server.cjs
-|   |-- config.cjs
-|   |-- security.cjs
-|   |-- seed.cjs
-|   |-- data/
-|   |-- repositories/
-|   |-- services/
-|   |-- sql/
-|   `-- tests/
+|   |-- app.cjs                   # Express app factory and middleware wiring
+|   |-- server.cjs                # Backend entrypoint
+|   |-- config.cjs                # Environment parsing
+|   |-- security.cjs              # Security headers, CORS, password/email helpers
+|   |-- seed.cjs                  # Demo user seeding
+|   |-- data/                     # Built-in curricula and local JSON persistence
+|   |-- repositories/             # File/Postgres storage adapters
+|   |-- routes/                   # API route modules
+|   |-- services/                 # Domain logic
+|   |-- sql/                      # PostgreSQL schema
+|   `-- tests/                    # Backend tests
+|-- public/                       # Static assets
 |-- src/
-|   |-- App.jsx
-|   |-- App.css
-|   |-- app-utils.js
-|   |-- main.jsx
-|   |-- pages/
-|   |-- utils/
-|   `-- *.test.jsx
-|-- test/
-|-- public/
-|-- .env.example
+|   |-- app/                      # App shell, app helpers, app-level tests/styles
+|   |-- assets/                   # Frontend assets
+|   |-- components/               # Reusable UI components
+|   |-- features/                 # Feature-specific UI
+|   |-- layout/                   # Dashboard shell/sidebar
+|   |-- pages/                    # Route/page components
+|   |-- services/                 # Frontend API/storage services
+|   |-- utils/                    # Shared frontend utilities
+|   |-- main.jsx                  # React bootstrap
+|   `-- index.css                 # Global base styles
+|-- test/                         # Legacy/shared unit tests
 |-- render.yaml
 |-- vercel.json
 |-- vite.config.js
@@ -74,43 +48,40 @@ Persistence:
 `-- README.md
 ```
 
-## Main Flows
+## Main API Routes
 
-Frontend:
-
-- login and registration screen
-- dashboard with overview, curriculum, board, analytics, and settings pages
-- token and theme persistence via `localStorage`
-- API fallback to local backend in development when needed
-
-Backend:
-
-- `/api/auth/register`
-- `/api/auth/login`
-- `/api/auth/logout`
-- `/api/auth/me`
-- `/api/curriculums`
-- `/api/map`
-- `/api/profile`
-- `/api/progress/toggle`
-- `/api/health`
+- `GET /api/health`
+- `GET /api/curriculums`
+- `POST /api/curriculums/import`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `PATCH /api/profile`
+- `GET /api/map`
+- `POST /api/progress/toggle`
 
 ## Requirements
 
-- Node.js 20+ recommended
-- npm 10+ recommended
+- Node.js 20+
+- npm 10+
+- PostgreSQL/Neon only when using `STORAGE_DRIVER=postgres`
 
-## Environment Variables
+## Setup
 
-Copy `.env.example` to `.env` and adjust if needed.
+Install dependencies:
 
-Example:
+```bash
+npm install
+```
+
+Create a local `.env` from `.env.example`:
 
 ```bash
 APP_ENV=development
 PORT=3001
 VITE_API_BASE_URL=/api
-STORAGE_DRIVER=postgres
+STORAGE_DRIVER=file
 USERS_FILE=backend/data/users.json
 IMPORTED_CURRICULUMS_FILE=backend/data/imported-curriculums.json
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coursemapper
@@ -120,25 +91,7 @@ MISTRAL_MODEL=mistral-small-latest
 MISTRAL_OCR_MODEL=mistral-ocr-latest
 ```
 
-Description:
-
-- `PORT`: backend port
-- `VITE_API_BASE_URL`: frontend API base URL
-- `APP_ENV`: `development` or `production`
-- `STORAGE_DRIVER`: `file` or `postgres`
-- `USERS_FILE`: JSON database path when using file storage
-- `IMPORTED_CURRICULUMS_FILE`: JSON database path for imported curriculums when using file storage
-- `DATABASE_URL`: PostgreSQL connection string
-- `ALLOWED_ORIGINS`: comma-separated list of allowed frontend origins for CORS
-- `MISTRAL_API_KEY`: required for PDF/DOCX or unstructured curriculum imports
-- `MISTRAL_MODEL`: Mistral chat model used to structure curricula
-- `MISTRAL_OCR_MODEL`: Mistral OCR model used to read PDFs before structuring
-
-## Installation
-
-```bash
-npm install
-```
+Use `STORAGE_DRIVER=file` for fast local development. Use `STORAGE_DRIVER=postgres` with `DATABASE_URL` for Neon/PostgreSQL.
 
 ## Running Locally
 
@@ -160,14 +113,14 @@ Run only the backend:
 npm run backend
 ```
 
-Default local URLs:
+Default URLs:
 
-- frontend: `http://localhost:5173`
-- backend health check: `http://localhost:3001/api/health`
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:3001/api/health`
 
 ## Demo User
 
-Create or update the demo user:
+Seed the demo user:
 
 ```bash
 npm run seed
@@ -175,149 +128,118 @@ npm run seed
 
 Credentials:
 
-- registration: `2026000001`
-- password: `Demo@2026`
+- Registration: `2026000001`
+- Password: `Demo@2026`
 
-## Available Scripts
+## Scripts
 
-- `npm run dev`: starts the frontend with Vite
-- `npm run backend`: starts the Express backend in watch mode
-- `npm run dev:all`: runs frontend and backend together
-- `npm run seed`: creates or refreshes the demo user
-- `npm run build`: creates the production frontend build
-- `npm run preview`: previews the production build locally
-- `npm run lint`: runs ESLint
-- `npm test`: runs the automated test suite
-- `npm run test:watch`: runs Vitest in watch mode
-
-## Persistence Modes
-
-### File Storage
-
-Use:
-
-```bash
-STORAGE_DRIVER=file
-```
-
-Data is stored in:
-
-- `backend/data/users.json`
-
-This is the fastest option for local development.
-
-### PostgreSQL / Neon
-
-Use:
-
-```bash
-STORAGE_DRIVER=postgres
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coursemapper
-```
-
-Relevant files:
-
-- `backend/repositories/postgresUserRepository.cjs`
-- `backend/sql/schema.postgres.sql`
-
-The backend initializes the schema automatically when the PostgreSQL repository starts.
-
-## Security Notes
-
-- passwords are hashed with `scrypt`
-- registration validates password strength
-- email addresses are normalized before persistence
-- profile updates validate email and allowed themes
-- session access is protected through bearer token authentication
-- production blocks `STORAGE_DRIVER=file` and requires `ALLOWED_ORIGINS`
-- API responses use hardened headers like `X-Frame-Options`, `Referrer-Policy`, and `HSTS` in production
-- imported PDF and DOCX files are restricted by MIME type and size before parsing
+- `npm run dev`: start Vite
+- `npm run backend`: start the Express backend with watch mode
+- `npm run dev:all`: run frontend and backend together
+- `npm run seed`: create/update the demo user
+- `npm run build`: build the frontend
+- `npm run preview`: preview the frontend build
+- `npm test`: run all tests
+- `npm run test:watch`: run tests in watch mode
+- `npm run lint`: run ESLint
 
 ## Testing
 
-Run all tests:
+Run the full test suite:
 
 ```bash
 npm test
 ```
 
-The repository includes:
+Run frontend tests only:
 
-- backend tests in `backend/tests/`
-- frontend tests in `src/*.test.jsx`
-- utility tests in `src/utils/`
+```bash
+npx vitest run src
+```
 
-## Architecture Notes
+Run backend tests only:
 
-Backend service split:
+```bash
+npx vitest run backend/tests
+```
 
-- `backend/app.cjs`: app factory and route wiring
-- `backend/services/curriculumCatalog.cjs`: curriculum catalog/indexing
-- `backend/services/mapService.cjs`: curriculum map payload building
-- `backend/services/progressService.cjs`: subject completion rules
-- `backend/repositories/`: storage layer abstraction
-
-Frontend organization:
-
-- `src/App.jsx`: app shell and route flow
-- `src/pages/BoardPage.jsx`: board visualization
-- `src/app-utils.js`: dashboard formatting and helper logic
-- `src/utils/authValidation.js`: credential validation helpers
+The current suite covers backend routes, repositories, security helpers, frontend services, app helpers, pages, layout, auth UI, and the main app flow.
 
 ## Deploy
 
-### Render
+### Render Backend
 
-The repository includes:
+`render.yaml` deploys the backend service.
 
-- `render.yaml`
-
-Recommended environment values:
+Required production variables:
 
 ```bash
 APP_ENV=production
 PORT=10000
 STORAGE_DRIVER=postgres
-ALLOWED_ORIGINS=https://dacgp1-joao-fqatm7s69.vercel.app
-```
-
-Required secrets in Render:
-
-```bash
 DATABASE_URL=...
+ALLOWED_ORIGINS=https://dacgp1-joao.vercel.app,https://joaovitorsteffendonascimento.github.io
 MISTRAL_API_KEY=...
+MISTRAL_MODEL=mistral-small-latest
+MISTRAL_OCR_MODEL=mistral-ocr-latest
 ```
 
 Health check:
 
-- `/api/health`
+```text
+/api/health
+```
 
-### Vercel
+### Vercel Frontend
 
-The repository includes:
+Production frontend:
 
-- `vercel.json`
+```text
+https://dacgp1-joao.vercel.app
+```
 
-Set:
+Recommended variable:
 
 ```bash
 VITE_API_BASE_URL=https://dacgp1-joao.onrender.com/api
 ```
 
+The `api/[...path].js` proxy exists for the `/api` proxy strategy, but the current production setup can call the Render API directly through `VITE_API_BASE_URL`.
+
+### Neon Database
+
+Use the Neon connection string as `DATABASE_URL`, usually with SSL enabled:
+
+```bash
+postgresql://user:password@host/dbname?sslmode=require
+```
+
+The backend initializes `backend/sql/schema.postgres.sql` automatically when the Postgres repositories start.
+
 ### GitHub Pages
 
-The repository includes:
+The workflow in `.github/workflows/deploy-pages.yml` builds the frontend with:
 
-- `.github/workflows/deploy-pages.yml`
+```bash
+VITE_BASE_PATH=/CourseMapper/
+VITE_API_BASE_URL=https://dacgp1-joao.onrender.com/api
+```
 
-The workflow builds the frontend on every push to `main`.
+In GitHub, set Pages source to **GitHub Actions** if you want to use this deploy target.
 
 ## Troubleshooting
 
-- If the frontend receives HTML instead of JSON, make sure the backend is running and `VITE_API_BASE_URL` is correct.
-- If the backend fails with PostgreSQL, confirm `DATABASE_URL` and the selected `STORAGE_DRIVER`.
-- If you want to reset local file storage, clear `backend/data/users.json`.
+- `Failed to fetch`: check whether the current frontend origin is included in Render `ALLOWED_ORIGINS`.
+- API returns HTML instead of JSON: verify `VITE_API_BASE_URL` and avoid calling a frontend SPA route as if it were the backend.
+- Render is slow on first request: the free plan can cold start.
+- PostgreSQL errors: confirm `STORAGE_DRIVER=postgres` and a valid `DATABASE_URL`.
+- Local file reset: clear `backend/data/users.json` and `backend/data/imported-curriculums.json`.
 
-## Status
+## Security Notes
 
-This project is ready for local development, automated testing, and production deployment of frontend and backend separately.
+- Passwords are hashed with `scrypt`.
+- Production blocks local file persistence by requiring `STORAGE_DRIVER=postgres`.
+- Production requires explicit CORS origins through `ALLOWED_ORIGINS`.
+- Sensitive profile/auth responses use restrictive cache headers.
+- Security headers include `X-Frame-Options`, `Referrer-Policy`, `X-Content-Type-Options`, and HSTS in production.
+- Curriculum import validates MIME/size limits before parsing.

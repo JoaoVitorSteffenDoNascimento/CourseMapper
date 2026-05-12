@@ -169,7 +169,19 @@ describe('backend app routes', () => {
   })
 
   it('bloqueia payloads grandes em rotas sensiveis', async () => {
-    const largeAvatar = `data:image/png;base64,${'a'.repeat(2 * 1024 * 1024 + 10)}`
+    app = createApp({
+      curriculumRepository,
+      userRepository: repo,
+      config: {
+        storageDriver: 'file',
+        mistralApiKey: '',
+        maxProfileAvatarDataUriLength: 32,
+        maxImportTextLength: 32,
+      },
+      emailDomainValidator: async () => true,
+    })
+
+    const largeAvatar = `data:image/png;base64,${'a'.repeat(40)}`
 
     const profile = await request(app)
       .patch('/api/profile')
@@ -190,7 +202,7 @@ describe('backend app routes', () => {
       .set('Authorization', 'Bearer token-1')
       .send({
         fileName: 'grade.json',
-        sourceText: 'x'.repeat(4 * 1024 * 1024 + 10),
+        sourceText: 'x'.repeat(40),
       })
 
     expect(importPayload.status).toBe(413)

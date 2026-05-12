@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
-const crypto = require('crypto');
 const compression = require('compression');
 
 const defaultConfig = require('./config.cjs');
@@ -11,6 +10,11 @@ const { createCurriculumCatalog, mergeCurriculumSources } = require('./services/
 const { parseCurriculumSource } = require('./services/curriculumImportService.cjs');
 const { buildMapPayload: buildMapPayloadFromCatalog } = require('./services/mapService.cjs');
 const { toggleSubjectProgress } = require('./services/progressService.cjs');
+const { registerAuthRoutes } = require('./routes/authRoutes.cjs');
+const { registerCurriculumRoutes } = require('./routes/curriculumRoutes.cjs');
+const { registerMapRoutes } = require('./routes/mapRoutes.cjs');
+const { registerProfileRoutes } = require('./routes/profileRoutes.cjs');
+const { registerProgressRoutes } = require('./routes/progressRoutes.cjs');
 const {
   SECURE_THEMES,
   applySecurityHeaders,
@@ -273,232 +277,34 @@ function createApp({
     });
   });
 
-  app.get('/api/curriculums', (req, res) => {
-    buildCurriculumSummary()
-      .then((summary) => {
-        res.json(summary);
-      })
-      .catch((error) => {
-        res.status(500).json({ error: error.message || 'Falha ao carregar curriculos.' });
-      });
-  });
+  const routeContext = {
+    buildCurriculumSummary,
+    buildMapPayload,
+    clearFailedLoginAttempts,
+    config,
+    curriculumRepository,
+    getAuthenticatedUser,
+    getCurriculumCatalog,
+    getLoginThrottleState,
+    getTokenFromRequest,
+    hashPassword,
+    normalizeEmail,
+    parseCurriculumSource,
+    registerFailedLoginAttempt,
+    sanitizeUser,
+    securityLimits,
+    toggleSubjectProgress,
+    userRepository,
+    validateProfileUpdate,
+    validateRegistrationInput,
+    verifyPassword,
+  };
 
-  app.post('/api/curriculums/import', async (req, res) => {
-    const user = await getAuthenticatedUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Sessao invalida.' });
-    }
-
-    const sourceText = String(req.body.sourceText || '');
-    const fileName = String(req.body.fileName || '').trim();
-    const fileData = String(req.body.fileData || '').trim();
-    const mimeType = String(req.body.mimeType || '').trim();
-
-    if (!sourceText.trim() && !fileData) {
-      return res.status(400).json({ error: 'Envie o conteudo ou o arquivo da grade curricular.' });
-    }
-
-    if (sourceText.length > securityLimits.maxImportTextLength || fileData.length > securityLimits.maxImportFileDataLength) {
-      return res.status(413).json({ error: 'Arquivo ou conteudo muito grande para importacao.' });
-    }
-
-    try {
-      const curriculum = await parseCurriculumSource({
-        fileData,
-        fileName,
-        mimeType,
-        mistralApiKey: config.mistralApiKey,
-        mistralModel: config.mistralModel,
-        mistralOcrModel: config.mistralOcrModel,
-        sourceText,
-      });
-
-      await curriculumRepository.upsert(curriculum);
-      const summary = await buildCurriculumSummary();
-
-      return res.status(201).json({
-        curriculum,
-        curriculums: summary,
-      });
-    } catch (error) {
-      return res.status(400).json({ error: error.message || 'Falha ao importar a grade curricular.' });
-    }
-  });
-
-  app.post('/api/auth/register', async (req, res) => {
-    const validationError = await validateRegistrationInput(req.body);
-
-    if (validationError) {
-      return res.status(400).json({ error: validationError });
-    }
-
-    const { name, registration, email, password, courseId } = req.body;
-    const normalizedRegistration = String(registration).trim();
-    const normalizedEmail = normalizeEmail(email);
-
-    const existingRegistration = await userRepository.findByRegistration(normalizedRegistration);
-    if (existingRegistration) {
-      return res.status(409).json({ error: 'Matricula ja cadastrada.' });
-    }
-
-    const existingEmail = await userRepository.findByEmail(normalizedEmail);
-    if (existingEmail) {
-      return res.status(409).json({ error: 'E-mail ja cadastrado.' });
-    }
-
-    const user = {
-      id: crypto.randomUUID(),
-      name: String(name).trim(),
-      username: String(name).trim().split(/\s+/)[0].toLowerCase(),
-      registration: normalizedRegistration,
-      email: normalizedEmail,
-      courseId,
-      avatarUrl: '',
-      passwordHash: hashPassword(String(password)),
-      sessionToken: crypto.randomUUID(),
-      preferences: {
-        theme: 'brand',
-      },
-      progress: {
-        [courseId]: [],
-      },
-    };
-
-    await userRepository.create(user);
-
-    return res.status(201).json({
-      token: user.sessionToken,
-      user: sanitizeUser(user),
-    });
-  });
-
-  app.post('/api/auth/login', async (req, res) => {
-    const { registration, password } = req.body;
-
-    if (!registration || !password) {
-      return res.status(400).json({ error: 'Informe matricula e senha.' });
-    }
-
-    const normalizedRegistration = String(registration).trim();
-    const now = Date.now();
-    const throttleState = getLoginThrottleState(req, normalizedRegistration, now);
-
-    if (throttleState.blockedUntil > now) {
-      const retryAfterSeconds = Math.ceil((throttleState.blockedUntil - now) / 1000);
-      res.setHeader('Retry-After', String(retryAfterSeconds));
-      return res.status(429).json({ error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' });
-    }
-
-    const user = await userRepository.findByRegistration(normalizedRegistration);
-
-    if (!user || !verifyPassword(String(password), user.passwordHash)) {
-      registerFailedLoginAttempt(req, normalizedRegistration);
-      return res.status(401).json({ error: 'Credenciais invalidas.' });
-    }
-
-    clearFailedLoginAttempts(req, normalizedRegistration);
-
-    const sessionToken = crypto.randomUUID();
-    const updatedUser = await userRepository.updateById(user.id, {
-      ...user,
-      sessionToken,
-    });
-
-    return res.json({
-      token: updatedUser.sessionToken,
-      user: sanitizeUser(updatedUser),
-    });
-  });
-
-  app.post('/api/auth/logout', async (req, res) => {
-    const token = getTokenFromRequest(req);
-
-    if (!token) {
-      return res.status(204).send();
-    }
-
-    await userRepository.updateByToken(token, (user) => ({
-      ...user,
-      sessionToken: '',
-    }));
-
-    return res.status(204).send();
-  });
-
-  app.get('/api/auth/me', async (req, res) => {
-    const user = await getAuthenticatedUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Sessao invalida.' });
-    }
-
-    return res.json({ user: sanitizeUser(user) });
-  });
-
-  app.patch('/api/profile', async (req, res) => {
-    const user = await getAuthenticatedUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Sessao invalida.' });
-    }
-
-    const validationError = await validateProfileUpdate(user, req.body);
-
-    if (validationError) {
-      return res.status(400).json({ error: validationError });
-    }
-
-    const updatedUser = await userRepository.updateById(user.id, {
-      ...user,
-      name: String(req.body.name).trim(),
-      username: String(req.body.username).trim(),
-      email: String(req.body.email).trim().toLowerCase(),
-      courseId: user.courseId,
-      avatarUrl: String(req.body.avatarUrl || '').trim(),
-      preferences: {
-        ...user.preferences,
-        theme: String(req.body.theme || 'brand').trim(),
-      },
-    });
-
-    return res.json({ user: sanitizeUser(updatedUser) });
-  });
-
-  app.get('/api/map', async (req, res) => {
-    const user = await getAuthenticatedUser(req);
-
-    if (!user) {
-      return res.status(401).json({ error: 'Sessao invalida.' });
-    }
-
-    return res.json(await buildMapPayload(user, req.query.courseId));
-  });
-
-  app.post('/api/progress/toggle', async (req, res) => {
-    const user = await getAuthenticatedUser(req);
-    const curriculumCatalog = await getCurriculumCatalog();
-
-    if (!user) {
-      return res.status(401).json({ error: 'Sessao invalida.' });
-    }
-
-    const progressResult = toggleSubjectProgress(user, req.body, curriculumCatalog);
-
-    if (progressResult.error) {
-      return res.status(progressResult.status).json({ error: progressResult.error });
-    }
-
-    const updatedUser = await userRepository.updateById(user.id, {
-      ...user,
-      progress: {
-        ...user.progress,
-        [progressResult.courseId]: progressResult.progress,
-      },
-    });
-
-    return res.json(await buildMapPayload(updatedUser, progressResult.courseId));
-  });
+  registerCurriculumRoutes(app, routeContext);
+  registerAuthRoutes(app, routeContext);
+  registerProfileRoutes(app, routeContext);
+  registerMapRoutes(app, routeContext);
+  registerProgressRoutes(app, routeContext);
 
   app.use('/api', (req, res) => {
     return res.status(404).json({ error: 'Rota da API nao encontrada.' });

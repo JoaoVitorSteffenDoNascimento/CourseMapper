@@ -19,7 +19,7 @@ import {
   normalizeRegistration,
   validateAuthForm,
   validateSettingsForm,
-} from '../src/app-utils.js';
+} from '../src/app/app-utils.js';
 
 process.env.STORAGE_DRIVER = 'file';
 process.env.USERS_FILE = path.join(tmpdir(), `coursemapper-test-users-${Date.now()}.json`);
